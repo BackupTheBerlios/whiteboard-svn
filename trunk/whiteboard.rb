@@ -240,6 +240,14 @@ class WhiteboardMainWidget < Qt::Widget
 		@mousePos = Qt::Point.new(e.pos.x, e.pos.y)
 	end
 
+	#
+	#
+	#
+	#
+	#
+	#
+
+
 	def mouseDoubleClickEvent(e)
 	end
 

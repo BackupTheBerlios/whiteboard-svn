@@ -6,6 +6,12 @@ require 'enum'
 require 'mainwindow'
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
+	slots 'insertRectangle()'
+
+	def insertRectangle()
+		@widget.canvasView.insertRectangle #hacky
+	end
+
 	def initialize()
 		super
 		@toolbar = Qt::ToolBar.new("hello", self)
@@ -20,6 +26,8 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		@widget = WhiteboardMainWidget.new(self)
 		@widget.show()
 		setCentralWidget(@widget)
+
+		connect( @insertRectangleAction, SIGNAL('activated()'), SLOT('insertRectangle()') )
 	end
 end
 
@@ -35,7 +43,7 @@ end
 class WhiteboardView < Qt::CanvasView
 	def initialize(canvas, parent)
 		super(canvas, parent)
-		@@states = Enum.new(:Default, :Selecting, :Resizing)
+		@@states = Enum.new(:Default, :Selecting, :Resizing, :Creating)
 		@@mouseStates = Enum.new(:Down, :Up)
 
 		@canvas = canvas
@@ -84,6 +92,10 @@ class WhiteboardView < Qt::CanvasView
 		end
 	end
 
+	def insertRectangle()
+		@state = @@states::Creating
+	end
+
 	def drawControlPoints(o)
 		@controlPoints.each { |c| c.hide() }
 		@controlPoints = []
@@ -102,10 +114,10 @@ class WhiteboardView < Qt::CanvasView
 
 		list = @canvas.collisions(e.pos)
 
-		if list.empty?
+		if list.empty? or @state == @@states::Creating # probably need to change this
 			# clicked on empty space: deselect all
 			
-			@state = @@states::Selecting
+			@state = @@states::Selecting if @state == @@states::Default
 			@selectionRectangle = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
 			@selectionPoint1 = Qt::Point.new(e.pos.x, e.pos.y)
 			@selectionRectangle.show
@@ -148,7 +160,7 @@ class WhiteboardView < Qt::CanvasView
 
 	def contentsMouseMoveEvent(e)
 		super
-		if @state == @@states::Selecting
+		if @state == @@states::Selecting or @state == @@states::Creating
 			point2 = Qt::Point.new(e.pos.x, e.pos.y)
 			points = (@selectionPoint1.x < point2.x) ? [@selectionPoint1, point2] : [point2, @selectionPoint1]
 			@selectionRectangle.move(points[0].x, points[0].y)
@@ -196,10 +208,16 @@ class WhiteboardView < Qt::CanvasView
 	def contentsMouseReleaseEvent(e) 
 		super
 		@mouseButtonState = @@mouseStates::Up
-		if @state == @@states::Selecting
+		if @state == @@states::Selecting or @state == @@states::Creating
+			if @state == @@states::Creating
+				@rects << @selectionRectangle
+			else
+				@selectionRectangle.hide
+				@selectionRectangle = nil
+			end
+			@canvas.update
+			
 			@state = @@states::Default
-			@selectionRectangle.hide()
-			@selectionRectangle = nil
 		end
 	end
 end
@@ -207,6 +225,8 @@ end
 
 class WhiteboardMainWidget < Qt::Widget
 	slots 'addEquation()' 
+	
+	attr_reader :canvasView
 
 	$controlPointSize = 10
 	$objectMinimumSize = 10
@@ -233,29 +253,6 @@ class WhiteboardMainWidget < Qt::Widget
 		layout.addMultiCellWidget(@canvasView, 0, 0, 0, 0)
 		layout.addWidget(@textBox, 1, 0)
 		layout.addWidget(addButton, 1, 1)
-
-	end
-
-	def mousePressEvent(e)
-		@mousePos = Qt::Point.new(e.pos.x, e.pos.y)
-	end
-
-	#
-	#
-	#
-	#
-	#
-	#
-
-
-	def mouseDoubleClickEvent(e)
-	end
-
-	def mouseReleaseEvent(e)
-		@canvas.update()
-	end
-
-	def mouseMoveEvent(e)
 	end
 end
 

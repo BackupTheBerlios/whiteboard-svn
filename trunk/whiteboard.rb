@@ -6,10 +6,14 @@ require 'enum'
 require 'mainwindow'
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
-	slots 'insertRectangle()'
+	slots 'insertRectangle()', 'insertMath()'
 
 	def insertRectangle()
 		@widget.canvasView.insertRectangle #hacky
+	end
+	
+	def insertMath()
+		@widget.canvasView.insertMath #hacky
 	end
 
 	def initialize()
@@ -28,6 +32,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		setCentralWidget(@widget)
 
 		connect( @insertRectangleAction, SIGNAL('activated()'), SLOT('insertRectangle()') )
+		connect( @insertMathAction, SIGNAL('activated()'), SLOT('insertMath()') )
 	end
 end
 
@@ -41,9 +46,11 @@ class ControlPoint < Qt::CanvasRectangle
 end
 
 class WhiteboardView < Qt::CanvasView
+	signals 'math()'
+
 	def initialize(canvas, parent)
 		super(canvas, parent)
-		@@states = Enum.new(:Default, :Selecting, :Resizing, :Creating)
+		@@states = Enum.new(:Default, :Selecting, :Resizing, :Creating_Rectangle, :Creating_Math)
 		@@mouseStates = Enum.new(:Down, :Up)
 
 		@canvas = canvas
@@ -93,18 +100,36 @@ class WhiteboardView < Qt::CanvasView
 	end
 
 	def insertRectangle()
-		@state = @@states::Creating
+		@state = @@states::Creating_Rectangle
+	end
+	
+	def insertMath()
+		@state = @@states::Creating_Math
+	end
+
+	def setMath(text)
+		system("kopete_latexconvert.sh '" + text + "'")
+		#this temporary (@image) is necessary coz of strange garbage collection issues	
+
+		@image = Qt::Image.new("out.png")
+		@originalImage = @image.copy()
+		pixM = Qt::Pixmap.new(@image)
+		@pix = Qt::CanvasPixmapArray.new([pixM])
+		sprite = Qt::CanvasSprite.new(@pix, @canvas)
+		sprite.move(@mathLocation.x, @mathLocation.y)
+		sprite.show
+		@canvas.update()
 	end
 
 	def drawControlPoints(o)
 		@controlPoints.each { |c| c.hide() }
 		@controlPoints = []
-		for i in 1..8
+		8.times {
 			rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, o)
 			rect.z = 1 #control points go on top of object
 			rect.show()
 			@controlPoints << rect
-		end
+		}
 
 		updateControlPoints(o.rect)
 	end
@@ -114,11 +139,17 @@ class WhiteboardView < Qt::CanvasView
 
 		list = @canvas.collisions(e.pos)
 
-		if list.empty? or @state == @@states::Creating # probably need to change this
-			# clicked on empty space: deselect all
-			
+		if @state == @@states::Creating_Math
+			emit math()
+			@mathLocation = Qt::Point.new(e.pos.x - self.x, e.pos.y - self.y)
+		elsif list.empty? or @state == @@states::Creating_Rectangle
+			# At the moment we use the same rectangle for selection and for
+			# the definition of a new rectangle.  We'll need to change this 
+			# when we have non-rectangular shapes.
+
 			@state = @@states::Selecting if @state == @@states::Default
 			@selectionRectangle = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
+			# we keep the original point from which the rectangle is repeatedly drawn
 			@selectionPoint1 = Qt::Point.new(e.pos.x, e.pos.y)
 			@selectionRectangle.show
 			@selected = []
@@ -152,7 +183,7 @@ class WhiteboardView < Qt::CanvasView
 	def setBrushes()
 		@rects.each { |r| r.setBrush(@nonSelectedBrush) }
 		@rects.each { |r|
-			if (@state == @@states::Resizing and r == @selected[0].parent or @selected.index(r) != nil)
+			if (@state == @@states::Resizing and r == @selected[0].parent) or @selected.index(r) != nil
 				r.setBrush(@selectedBrush)
 			end
 		}
@@ -160,7 +191,7 @@ class WhiteboardView < Qt::CanvasView
 
 	def contentsMouseMoveEvent(e)
 		super
-		if @state == @@states::Selecting or @state == @@states::Creating
+		if @state == @@states::Selecting or @state == @@states::Creating_Rectangle
 			point2 = Qt::Point.new(e.pos.x, e.pos.y)
 			points = (@selectionPoint1.x < point2.x) ? [@selectionPoint1, point2] : [point2, @selectionPoint1]
 			@selectionRectangle.move(points[0].x, points[0].y)
@@ -183,10 +214,8 @@ class WhiteboardView < Qt::CanvasView
 			dx, dy = e.pos.x - @mousePos.x, e.pos.y - @mousePos.y
 
 			if @controlPoints.index(@selected[0]) != nil
-				@draggedObject = @selected[0]
-				currentObject = @draggedObject.parent
-
-				cp = @rectHash[@draggedObject]
+				currentObject = @selected[0].parent
+				cp = @rectHash[@selected[0]]
 				newWidth = currentObject.width + cp[0]*dx
 				newHeight = currentObject.height + cp[1]*dy
 				if newWidth < 5 or newHeight < 5 # this isn't very good
@@ -208,8 +237,8 @@ class WhiteboardView < Qt::CanvasView
 	def contentsMouseReleaseEvent(e) 
 		super
 		@mouseButtonState = @@mouseStates::Up
-		if @state == @@states::Selecting or @state == @@states::Creating
-			if @state == @@states::Creating
+		if @state == @@states::Selecting or @state == @@states::Creating_Rectangle
+			if @state == @@states::Creating_Rectangle
 				@rects << @selectionRectangle
 			else
 				@selectionRectangle.hide
@@ -224,9 +253,9 @@ end
 
 
 class WhiteboardMainWidget < Qt::Widget
-	slots 'addEquation()' 
-	
 	attr_reader :canvasView
+
+	slots 'math()', 'update()'
 
 	$controlPointSize = 10
 	$objectMinimumSize = 10
@@ -243,22 +272,34 @@ class WhiteboardMainWidget < Qt::Widget
 		@canvasView.show()
 
 		@textBox = Qt::TextEdit.new(self)
-		@textBox.show()
 
-		addButton = Qt::PushButton.new('&Add', self)
-		addButton.show()
-
-		connect( addButton, SIGNAL('clicked()'), SLOT('addEquation()') )
+		@updateButton = Qt::PushButton.new('&Update', self)
 
 		layout.addMultiCellWidget(@canvasView, 0, 0, 0, 0)
 		layout.addWidget(@textBox, 1, 0)
-		layout.addWidget(addButton, 1, 1)
+		layout.addWidget(@updateButton, 1, 1)
+
+		connect(@canvasView, SIGNAL('math()'), SLOT('math()'))
+		connect(@updateButton, SIGNAL('clicked()'), SLOT('update()'))
+
+		@textBox.hide
+		@updateButton.hide
+	end
+
+	def math()
+		@textBox.show
+		@textBox.setFocus
+		@updateButton.show
+	end
+
+	def update()
+		@canvasView.setMath(@textBox.text)
 	end
 end
 
 a = Qt::Application.new(ARGV)
 w = WhiteboardMainWindow.new()
-w.resize(300, 300)
+w.resize(450, 300)
 w.show()
 a.setMainWidget(w)
 #Qt::Internal::setDebug Qt::QtDebugChannel::QTDB_GC

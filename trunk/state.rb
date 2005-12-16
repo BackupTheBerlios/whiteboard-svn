@@ -2,50 +2,10 @@
 $VERBOSE = true; $:.unshift File.dirname($0)
 
 require 'Qt'
+require 'enum'
+require 'mainwindow'
 
-class Enum < Module
-	class Member < Module
-		attr_reader :enum, :index
-
-		def initialize(enum, index)
-			@enum, @index = enum, index
-			extend enum
-		end
-
-		alias :to_int :index
-		alias :to_i :index
-
-		def <=>(other)
-			@index <=> other.index
-		end
-
-		include Comparable
-	end
-
-	def initialize(*symbols, &block)
-		@members = []
-		symbols.each_with_index do |symbol, index|
-			symbol = symbol.to_s.sub(/^[a-z]/) { |letter| letter.upcase }.to_sym
-			member = Enum::Member.new(self, index)
-			const_set(symbol, member)
-			@members << member
-		end
-		super(&block)
-	end
-
-	def [](index) @members[index] end
-	def size() @members.size end
-	alias :length :size
-
-	def first(*args) @members.first(*args) end
-	def last(*args) @members.last(*args) end
-
-	def each(&block) @members.each(&block) end
-	include Enumerable
-end
-
-
-class WhiteboardMainWindow < Qt::MainWindow
+class WhiteboardMainWindow < WhiteboardMainWindowUI
 	def initialize()
 		super
 		@toolbar = Qt::ToolBar.new("hello", self)
@@ -72,21 +32,31 @@ class ControlPoint < Qt::CanvasRectangle
 	end
 end
 
-class MyCanvasView < Qt::CanvasView
+class WhiteboardView < Qt::CanvasView
 	def initialize(canvas, parent)
 		super(canvas, parent)
 		@@states = Enum.new(:Default, :Selecting, :Resizing)
 		@@mouseStates = Enum.new(:Down, :Up)
 
 		@canvas = canvas
+		
+		# @selected will be an array containing the selected objects
+		# unless @state is Resizing, in which case it will be a 
+		# singleton array holding the selected control point
 		@selected = []
+
+		# when a single object is selected, control points are 
+		# drawn at each corner of the object and at the middle of each edge,
+		# to allow the object to be resized
 		@controlPoints = []
+
 		@state = @@states::Default
 		@mouseButtonState = @@mouseStates::Up
 
 		@selectedBrush = Qt::Brush.new(Qt::black)
 		@nonSelectedBrush = Qt::Brush.new(Qt::white)
 		
+		# just create some random objects to start off with
 		@rects = []
 		[0, 50, 100].each { |x|
 			[0, 50, 100].each { |y|
@@ -100,7 +70,7 @@ class MyCanvasView < Qt::CanvasView
 		show()
 	end
 
-	def updateRects(br)
+	def updateControlPoints(br)
 		@rectHash = {}
 		i = 0
 		for x in [[-1, br.left], [0, (br.right+br.left)/2], [1, br.right]]
@@ -114,7 +84,7 @@ class MyCanvasView < Qt::CanvasView
 		end
 	end
 
-	def selectObject(o)
+	def drawControlPoints(o)
 		@controlPoints.each { |c| c.hide() }
 		@controlPoints = []
 		for i in 1..8
@@ -124,9 +94,8 @@ class MyCanvasView < Qt::CanvasView
 			@controlPoints << rect
 		end
 
-		updateRects(o.rect)
+		updateControlPoints(o.rect)
 	end
-
 
 	def contentsMousePressEvent(e)
 		super
@@ -134,7 +103,7 @@ class MyCanvasView < Qt::CanvasView
 		list = @canvas.collisions(e.pos)
 
 		if list.empty?
-			# deselect all
+			# clicked on empty space: deselect all
 			
 			@state = @@states::Selecting
 			@selectionRectangle = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
@@ -145,6 +114,8 @@ class MyCanvasView < Qt::CanvasView
 			@controlPoints = []
 		else 
 			if @controlPoints.index(list[0]) != nil
+				# go to the Resizing state if we click on a control point
+
 				@selected = [list[0]]
 				@state = @@states::Resizing
 			elsif @selected.index(list[0]) == nil
@@ -155,7 +126,7 @@ class MyCanvasView < Qt::CanvasView
 				if @rects.index(list[0]) != nil
 					# if we clicked on an object (not a control point)
 					@state = @@states::Default
-					selectObject(list[0]) if @selected.length == 1
+					drawControlPoints(list[0]) if @selected.length == 1
 				end
 			end
 		end
@@ -185,24 +156,19 @@ class MyCanvasView < Qt::CanvasView
 			@selectionRectangle.setSize(size.x, size.y)
 
 			collisions = @canvas.collisions(@selectionRectangle.rect)
-			@selected = []
-			@rects.each { |l|
-				@selected << l if collisions.index(l) != nil and l != @selectionRectangle
-			}
+			@selected = @rects.select{|r| collisions.index(r) != nil}
 
 			setBrushes()
 		
-			# a bit hackish
 			if @selected.length == 1	
-				selectObject(@selected[0])
+				drawControlPoints(@selected[0])
 			else
 				@controlPoints.each { |c| c.hide() }
 				@controlPoints = []
 			end
 		else
 			@selected.each { |i| i.moveBy(e.x - @mousePos.x, e.y - @mousePos.y) }
-			dx = e.pos.x - @mousePos.x
-			dy = e.pos.y - @mousePos.y
+			dx, dy = e.pos.x - @mousePos.x, e.pos.y - @mousePos.y
 
 			if @controlPoints.index(@selected[0]) != nil
 				@draggedObject = @selected[0]
@@ -211,17 +177,15 @@ class MyCanvasView < Qt::CanvasView
 				cp = @rectHash[@draggedObject]
 				newWidth = currentObject.width + cp[0]*dx
 				newHeight = currentObject.height + cp[1]*dy
-				if newWidth < 5 or newHeight < 5
-					#this is probably not as nice as it could be
+				if newWidth < 5 or newHeight < 5 # this isn't very good
 					Qt::Cursor.setPos(mapToGlobal(@mousePos))
 					return
 				end
 				currentObject.setSize(newWidth, newHeight)
-				currentObject.moveBy(dx, 0) if cp[0] == -1
-				currentObject.moveBy(0, dy) if cp[1] == -1
-				updateRects(currentObject.boundingRect)
+				currentObject.moveBy(cp[0] == -1 ? dx : 0, cp[1] == -1 ? dy : 0) 
+				updateControlPoints(currentObject.boundingRect)
 			else
-				updateRects(@selected[0].boundingRect) if @selected.length == 1
+				updateControlPoints(@selected[0].boundingRect) if @selected.length == 1
 			end
 		end	
 
@@ -232,7 +196,6 @@ class MyCanvasView < Qt::CanvasView
 	def contentsMouseReleaseEvent(e) 
 		super
 		@mouseButtonState = @@mouseStates::Up
-		puts @mouseButtonState
 		if @state == @@states::Selecting
 			@state = @@states::Default
 			@selectionRectangle.hide()
@@ -256,7 +219,7 @@ class WhiteboardMainWidget < Qt::Widget
 
 		@canvas = Qt::Canvas.new(2000, 2000)
 		@canvas.resize( 300, 300 )
-		@canvasView = MyCanvasView.new( @canvas, self )
+		@canvasView = WhiteboardView.new( @canvas, self )
 		@canvasView.show()
 
 		@textBox = Qt::TextEdit.new(self)

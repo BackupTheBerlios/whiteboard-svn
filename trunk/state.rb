@@ -63,6 +63,15 @@ class WhiteboardMainWindow < Qt::MainWindow
 	end
 end
 
+class ControlPoint < Qt::CanvasRectangle
+	attr_reader :parent
+
+	def	initialize(boundingRect, canvas, parent)
+		super(boundingRect, canvas)
+		@parent = parent
+	end
+end
+
 class MyCanvasView < Qt::CanvasView
 	def initialize(canvas, parent)
 		super(canvas, parent)
@@ -71,6 +80,7 @@ class MyCanvasView < Qt::CanvasView
 
 		@canvas = canvas
 		@selected = []
+		@controlPoints = []
 		@state = @@states::Default
 		@mouseButtonState = @@mouseStates::Up
 
@@ -90,6 +100,20 @@ class MyCanvasView < Qt::CanvasView
 		show()
 	end
 
+	def updateRects(br)
+		@rectHash = {}
+		i = 0
+		for x in [[-1, br.left], [0, (br.right+br.left)/2], [1, br.right]]
+			for y in [[-1, br.top], [0, (br.top+br.bottom)/2], [1, br.bottom]]
+				if x[1] != (br.right+br.left)/2 or y[1] != (br.top+br.bottom)/2
+					@controlPoints[i].move(x[1] - $controlPointSize/2, y[1] - $controlPointSize/2)
+					@rectHash[@controlPoints[i]] = [x[0], y[0]]
+					i += 1
+				end
+			end
+		end
+	end
+
 	def contentsMousePressEvent(e)
 		super
 
@@ -100,10 +124,24 @@ class MyCanvasView < Qt::CanvasView
 			@selectionPoint1 = Qt::Point.new(e.pos.x, e.pos.y)
 			@selectionRectangle.show
 			@selected = []
+			@controlPoints.each { |c| c.hide() }
+			@controlPoints = []
 		else 
 			if (@selected == nil or @selected.index(list[0]) == nil)
 				@state = @@states::Default
 				@selected = [list[0]]
+			
+				if @rects.index(list[0]) != nil
+					@controlPoints.each { |c| c.hide() }
+					@controlPoints = []
+					for i in 1..8
+						rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, list[0])
+						rect.z = 1 #control points go on top of object
+						rect.show()
+						@controlPoints << rect
+					end
+					updateRects(list[0].rect)
+				end
 			end
 		end
 		@mouseButtonState = @@mouseStates::Down
@@ -135,6 +173,28 @@ class MyCanvasView < Qt::CanvasView
 			}
 		elsif
 			@selected.each { |i| i.moveBy(e.x - @mousePos.x, e.y - @mousePos.y) }
+			dx = e.pos.x - @mousePos.x
+			dy = e.pos.y - @mousePos.y
+
+			if @controlPoints.index(@selected[0]) != nil
+				@draggedObject = @selected[0]
+				@currentObject = @draggedObject.parent
+
+				cp = @rectHash[@draggedObject]
+				newWidth = @currentObject.width + cp[0]*dx
+				newHeight = @currentObject.height + cp[1]*dy
+				if newWidth < 5 or newHeight < 5
+					#this is probably not as nice as it could be
+					Qt::Cursor.setPos(mapToGlobal(@mousePos))
+					return
+				end
+				@currentObject.setSize(newWidth, newHeight)
+				@currentObject.moveBy(dx, 0) if cp[0] == -1
+				@currentObject.moveBy(0, dy) if cp[1] == -1
+				updateRects(@currentObject.boundingRect)
+			else
+				updateRects(@selected[0].boundingRect)
+			end
 		end	
 
 		@canvas.update

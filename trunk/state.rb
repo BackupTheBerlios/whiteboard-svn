@@ -75,7 +75,7 @@ end
 class MyCanvasView < Qt::CanvasView
 	def initialize(canvas, parent)
 		super(canvas, parent)
-		@@states = Enum.new(:Default, :Selecting)
+		@@states = Enum.new(:Default, :Selecting, :Resizing)
 		@@mouseStates = Enum.new(:Down, :Up)
 
 		@canvas = canvas
@@ -114,11 +114,28 @@ class MyCanvasView < Qt::CanvasView
 		end
 	end
 
+	def selectObject(o)
+		@controlPoints.each { |c| c.hide() }
+		@controlPoints = []
+		for i in 1..8
+			rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, o)
+			rect.z = 1 #control points go on top of object
+			rect.show()
+			@controlPoints << rect
+		end
+
+		updateRects(o.rect)
+	end
+
+
 	def contentsMousePressEvent(e)
 		super
 
 		list = @canvas.collisions(e.pos)
+
 		if list.empty?
+			# deselect all
+			
 			@state = @@states::Selecting
 			@selectionRectangle = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
 			@selectionPoint1 = Qt::Point.new(e.pos.x, e.pos.y)
@@ -127,30 +144,35 @@ class MyCanvasView < Qt::CanvasView
 			@controlPoints.each { |c| c.hide() }
 			@controlPoints = []
 		else 
-			if (@selected == nil or @selected.index(list[0]) == nil)
-				@state = @@states::Default
+			if @controlPoints.index(list[0]) != nil
+				@selected = [list[0]]
+				@state = @@states::Resizing
+			elsif @selected.index(list[0]) == nil
+				# i.e, if we click on an object that is already selected, do nothing
+				
 				@selected = [list[0]]
 			
 				if @rects.index(list[0]) != nil
-					@controlPoints.each { |c| c.hide() }
-					@controlPoints = []
-					for i in 1..8
-						rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, list[0])
-						rect.z = 1 #control points go on top of object
-						rect.show()
-						@controlPoints << rect
-					end
-					updateRects(list[0].rect)
+					# if we clicked on an object (not a control point)
+					@state = @@states::Default
+					selectObject(list[0]) if @selected.length == 1
 				end
 			end
 		end
 		@mouseButtonState = @@mouseStates::Down
 		@mousePos = Qt::Point.new(e.x, e.y)
 
-		@rects.each { |r|
-			r.setBrush(@selected.index(r) != nil ? @selectedBrush : @nonSelectedBrush)
-		}
+		setBrushes()
 		@canvas.update
+	end
+
+	def setBrushes()
+		@rects.each { |r| r.setBrush(@nonSelectedBrush) }
+		@rects.each { |r|
+			if (@state == @@states::Resizing and r == @selected[0].parent or @selected.index(r) != nil)
+				r.setBrush(@selectedBrush)
+			end
+		}
 	end
 
 	def contentsMouseMoveEvent(e)
@@ -165,35 +187,41 @@ class MyCanvasView < Qt::CanvasView
 			collisions = @canvas.collisions(@selectionRectangle.rect)
 			@selected = []
 			@rects.each { |l|
-				c = collisions.index(l) != nil
-				if l != @selectionRectangle
-					l.setBrush(c ? @selectedBrush : @nonSelectedBrush)
-					@selected << l if c
-				end
+				@selected << l if collisions.index(l) != nil and l != @selectionRectangle
 			}
-		elsif
+
+			setBrushes()
+		
+			# a bit hackish
+			if @selected.length == 1	
+				selectObject(@selected[0])
+			else
+				@controlPoints.each { |c| c.hide() }
+				@controlPoints = []
+			end
+		else
 			@selected.each { |i| i.moveBy(e.x - @mousePos.x, e.y - @mousePos.y) }
 			dx = e.pos.x - @mousePos.x
 			dy = e.pos.y - @mousePos.y
 
 			if @controlPoints.index(@selected[0]) != nil
 				@draggedObject = @selected[0]
-				@currentObject = @draggedObject.parent
+				currentObject = @draggedObject.parent
 
 				cp = @rectHash[@draggedObject]
-				newWidth = @currentObject.width + cp[0]*dx
-				newHeight = @currentObject.height + cp[1]*dy
+				newWidth = currentObject.width + cp[0]*dx
+				newHeight = currentObject.height + cp[1]*dy
 				if newWidth < 5 or newHeight < 5
 					#this is probably not as nice as it could be
 					Qt::Cursor.setPos(mapToGlobal(@mousePos))
 					return
 				end
-				@currentObject.setSize(newWidth, newHeight)
-				@currentObject.moveBy(dx, 0) if cp[0] == -1
-				@currentObject.moveBy(0, dy) if cp[1] == -1
-				updateRects(@currentObject.boundingRect)
+				currentObject.setSize(newWidth, newHeight)
+				currentObject.moveBy(dx, 0) if cp[0] == -1
+				currentObject.moveBy(0, dy) if cp[1] == -1
+				updateRects(currentObject.boundingRect)
 			else
-				updateRects(@selected[0].boundingRect)
+				updateRects(@selected[0].boundingRect) if @selected.length == 1
 			end
 		end	
 

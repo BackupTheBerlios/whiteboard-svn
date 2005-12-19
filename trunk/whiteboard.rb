@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 $VERBOSE = true; $:.unshift File.dirname($0)
 
+#whiteboard
+
 require 'Qt'
 require 'enum'
 require 'mainwindow'

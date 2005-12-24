@@ -1,21 +1,23 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env ruby -w
 $VERBOSE = true; $:.unshift File.dirname($0)
 
 #whiteboard
 
 require 'Qt'
+require 'pp'
 require 'enum'
 require 'mainwindow'
+require 'logger'
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
 	slots 'insertRectangle()', 'insertMath()'
 
 	def insertRectangle()
-		@widget.canvasView.insertRectangle #hacky
+		@widget.insertRectangle #hacky
 	end
 	
 	def insertMath()
-		@widget.canvasView.insertMath #hacky
+		@widget.insertMath #hacky
 	end
 
 	def initialize()
@@ -51,8 +53,8 @@ class WhiteboardObjectController
 	signals 'itemCreated(WhiteboardObject)', 'itemModified(WhiteboardObject)'
 
 	def initialize(mainWidget)
+		$log.info caller.join("\n")
 		@canvas = mainWidget.canvas
-		@canvasView = mainWidget.canvasView
 		@mainWidget = mainWidget
 	end
 
@@ -67,7 +69,33 @@ class WhiteboardObjectController
 
 	def create(p)
 	end
+
+	def objectSelected(o)
+	end
 end
+
+class WhiteboardObject
+	attr_reader :canvasItems, :isResizable
+end
+
+# getting ready for this
+#class WhiteboardRectangle < WhiteboardObject
+#	def initialize(canvas, e)
+#		@canvasRect = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, canvas)
+#		@canvasRect.show
+#
+#		#@canvasItems = [@canvasRect]
+#		@isResizable = true
+#	end
+#
+#	def move(x, y) @canvasRect.move(x, y) end
+#	def setSize(x, y) @canvasRect.setSize(x, y) end
+#end
+
+#class WhiteboardMathObject < WhiteboardObject
+#	def initialize(canvas, e)
+#
+#end
 
 class RectangleController < WhiteboardObjectController
 	def initialize(mainWidget)
@@ -79,6 +107,7 @@ class RectangleController < WhiteboardObjectController
 
 	def mousePress(e)
 		@point1 = Qt::Point.new(e.x, e.y)
+		#@rect = WhiteboardRectangle.new(@canvas, e) #Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
 		@rect = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
 		@rect.show
 	end
@@ -93,7 +122,8 @@ class RectangleController < WhiteboardObjectController
 	end
 
 	def mouseRelease(e)
-		@canvasView.createItem(@rect)
+		$log.info "creating rectangle"
+		@mainWidget.createItem(@rect)
 	end
 end
 
@@ -110,28 +140,82 @@ class MathController < WhiteboardObjectController
 	def updateText(text)
 		system("kopete_latexconvert.sh '" + text + "'")
 		image = Qt::Image.new("out.png")
-		pixM = Qt::Pixmap.new(image)
-		pix = Qt::CanvasPixmapArray.new([pixM])
+		pix = Qt::CanvasPixmapArray.new([Qt::Pixmap.new(image)])
 		sprite = Qt::CanvasSprite.new(pix, @mainWidget.canvas)
 		sprite.move(@point.x, @point.y)
 		sprite.show
 
-		# we put the pixmap onto an array that will be kept otherwise
+		# we put the pixmap onto an array that will be kept, otherwise
 		# we get a segfault on garbage collection
-		@mainWidget.canvasView.pixmaps << pix 
+		@mainWidget.pixmaps << pix 
 
 		@mainWidget.hideTextPanel
-		@mainWidget.canvasView.createItem(sprite)
+		@mainWidget.createItem(sprite)
 	end
+
+	def objectSelected(o)
+		#@mainWidget.setText(o.
+		@mainWidget.showTextPanel
+	end
+
 end
 
 class WhiteboardView < Qt::CanvasView
-	attr_reader :pixmaps
 
-	signals 'math()'
+	signals 'math()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)'
+	
+	def contentsMousePressEvent(e)
+		super
+		emit mousePress(e)
+	end
 
-	def initialize(canvas, parent)
-		super(canvas, parent)
+	def contentsMouseMoveEvent(e)
+		super
+		emit mouseMove(e)
+	end
+
+	def contentsMouseReleaseEvent(e) 
+		super
+		emit mouseRelease(e)
+	end
+end
+
+class WhiteboardMainWidget < Qt::Widget
+	attr_reader :canvasView, :canvas, :pixmaps
+
+	slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)'
+
+	$controlPointSize = 10
+	$objectMinimumSize = 10
+	$numRectangleControlPoints = 8
+
+	def initialize(parent)
+		super(parent)
+				
+		layout = Qt::GridLayout.new(self, 2, 2)
+
+		@canvas = Qt::Canvas.new(2000, 2000)
+		@canvas.resize( 1000, 1000 )
+		@canvasView = WhiteboardView.new( @canvas, self )
+		@canvasView.show()
+
+		@textBox = Qt::TextEdit.new(self)
+
+		@updateButton = Qt::PushButton.new('&Update', self)
+
+		layout.addMultiCellWidget(@canvasView, 0, 0, 0, 0)
+		layout.addWidget(@textBox, 1, 0)
+		layout.addWidget(@updateButton, 1, 1)
+
+		connect(@updateButton, SIGNAL('clicked()'), SLOT('update()'))
+		connect(@canvasView, SIGNAL('math()'), SLOT('math()'))
+		connect(@canvasView, SIGNAL('mousePress(QMouseEvent*)'), SLOT('mousePress(QMouseEvent*)'))
+		connect(@canvasView, SIGNAL('mouseMove(QMouseEvent*)'), SLOT('mouseMove(QMouseEvent*)'))
+		connect(@canvasView, SIGNAL('mouseRelease(QMouseEvent*)'), SLOT('mouseRelease(QMouseEvent*)'))
+
+		@textBox.hide
+		@updateButton.hide
+		
 		@@states = Enum.new(:Default, :Selecting, :Resizing, :Creating)
 		@@mouseStates = Enum.new(:Down, :Up)
 
@@ -155,73 +239,23 @@ class WhiteboardView < Qt::CanvasView
 		@selectedBrush = Qt::Brush.new(Qt::black)
 		@nonSelectedBrush = Qt::Brush.new(Qt::white)
 		
-		@objects = []
+		@canvasItems = []
+
+		@items = [] # move this into a different class eventually
+								# (this class should only contain the canvas items (maybe))
 		
 		@pixmaps = [] # we keep all the pixmaps to avoid segfaults on garbage collection
 
 		show()
 	end
 
-	def updateControlPoints(br)
-		@rectHash = {}
-		i = 0
-		for x in [[-1, br.left], [0, (br.right+br.left)/2], [1, br.right]]
-			for y in [[-1, br.top], [0, (br.top+br.bottom)/2], [1, br.bottom]]
-				if x[1] != (br.right+br.left)/2 or y[1] != (br.top+br.bottom)/2
-					@controlPoints[i].move(x[1] - $controlPointSize/2, y[1] - $controlPointSize/2)
-					@rectHash[@controlPoints[i]] = [x[0], y[0]]
-					i += 1
-				end
-			end
-		end
-	end
-
-	def createItem(object)
-		@objects << object
-		@controller = nil
-		@state = @@states::Default
-		@canvas.update
-	end
-
-	def insertRectangle()
-		@controller = RectangleController.new(@parent)
-		@state = @@states::Creating
-	end
-	
-	def insertMath()
-		@controller = MathController.new(@parent)
-		@state = @@states::Creating
-	end
-
-	def updateText(text)
-		@controller.updateText(text)
-	end
-
-	def drawControlPoints(o)
-		@controlPoints.each { |c| c.hide() }
-		@controlPoints = []
-		8.times {
-			rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, o)
-			rect.z = 1 #control points go on top of object
-			rect.show()
-			@controlPoints << rect
-		}
-
-		updateControlPoints(o.boundingRect)
-	end
-
-	def contentsMousePressEvent(e)
-		super
-
+	def mousePress(e)
 		list = @canvas.collisions(e.pos)
 
 		if @state == @@states::Creating
+			$log.info "mouse click in Creating state"
 			@controller.mousePress(e)
 		elsif list.empty?
-			# At the moment we use the same rectangle for selection and for
-			# the definition of a new rectangle.  We'll need to change this 
-			# when we have non-rectangular shapes.
-
 			@state = @@states::Selecting if @state == @@states::Default
 			@selectionRectangle = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
 			# we keep the original point from which the rectangle is repeatedly drawn
@@ -240,11 +274,15 @@ class WhiteboardView < Qt::CanvasView
 				# i.e, if we click on an object that is already selected, do nothing
 				
 				@selected = [list[0]]
+				$log.info "new object selected"
 			
-				if @objects.index(list[0]) != nil
+				if @canvasItems.index(list[0]) != nil
+					$log.info "and it's a canvas item"
 					# if we clicked on an object (not a control point)
 					@state = @@states::Default
-					drawControlPoints(list[0]) if @selected.length == 1
+					if @selected.length == 1
+						drawControlPoints(list[0]) 
+					end
 				end
 			end
 		end
@@ -252,10 +290,10 @@ class WhiteboardView < Qt::CanvasView
 		@mousePos = Qt::Point.new(e.x, e.y)
 
 		@canvas.update
+		$log.info "got the mouse press signal"
 	end
 
-	def contentsMouseMoveEvent(e)
-		super
+	def mouseMove(e)
 		if @state == @@states::Creating
 			@controller.mouseMove(e)
 		elsif @state == @@states::Selecting
@@ -266,7 +304,7 @@ class WhiteboardView < Qt::CanvasView
 			@selectionRectangle.setSize(size.x, size.y)
 
 			collisions = @canvas.collisions(@selectionRectangle.rect)
-			@selected = @objects.select{|r| collisions.index(r) != nil}
+			@selected = @canvasItems.select{|r| collisions.index(r) != nil}
 
 			if @selected.length == 1	
 				drawControlPoints(@selected[0])
@@ -306,8 +344,7 @@ class WhiteboardView < Qt::CanvasView
 		@mousePos = Qt::Point.new(e.x, e.y)
 	end
 
-	def contentsMouseReleaseEvent(e) 
-		super
+	def mouseRelease(e)
 		@mouseButtonState = @@mouseStates::Up
 		if @state == @@states::Creating
 			@controller.mouseRelease(e)
@@ -318,41 +355,57 @@ class WhiteboardView < Qt::CanvasView
 			@state = @@states::Default
 		end
 	end
-end
 
+	def updateControlPoints(br)
+		@rectHash = {}
+		i = 0
+		for x in [[-1, br.left], [0, (br.right+br.left)/2], [1, br.right]]
+			for y in [[-1, br.top], [0, (br.top+br.bottom)/2], [1, br.bottom]]
+				if x[1] != (br.right+br.left)/2 or y[1] != (br.top+br.bottom)/2
+					@controlPoints[i].move(x[1] - $controlPointSize/2, y[1] - $controlPointSize/2)
+					@rectHash[@controlPoints[i]] = [x[0], y[0]]
+					i += 1
+				end
+			end
+		end
+	end
 
-class WhiteboardMainWidget < Qt::Widget
-	attr_reader :canvasView, :canvas
+	def createItem(object)
+		@canvasItems << object
+		@controller = nil
+		@state = @@states::Default
+		@canvas.update
+	end
 
-	slots 'math()', 'update()'
+	def insertRectangle()
+		@controller = RectangleController.new(self)
+		@state = @@states::Creating
+	end
+	
+	def insertMath()
+		@controller = MathController.new(self)
+		@state = @@states::Creating
+	end
 
-	$controlPointSize = 10
-	$objectMinimumSize = 10
-	$numRectangleControlPoints = 8
+	def updateText(text)
+		@controller.updateText(text)
+	end
 
-	def initialize(parent)
-		super(parent)
-				
-		layout = Qt::GridLayout.new(self, 2, 2)
+	def drawControlPoints(o)
+		@controlPoints.each { |c| c.hide() }
+		@controlPoints = []
+		8.times {
+			rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, o)
+			rect.z = 1 # control points go on top of object
+			rect.show()
+			@controlPoints << rect
+		}
 
-		@canvas = Qt::Canvas.new(2000, 2000)
-		@canvas.resize( 1000, 1000 )
-		@canvasView = WhiteboardView.new( @canvas, self )
-		@canvasView.show()
+		updateControlPoints(o.boundingRect)
+	end
 
-		@textBox = Qt::TextEdit.new(self)
-
-		@updateButton = Qt::PushButton.new('&Update', self)
-
-		layout.addMultiCellWidget(@canvasView, 0, 0, 0, 0)
-		layout.addWidget(@textBox, 1, 0)
-		layout.addWidget(@updateButton, 1, 1)
-
-		connect(@canvasView, SIGNAL('math()'), SLOT('math()'))
-		connect(@updateButton, SIGNAL('clicked()'), SLOT('update()'))
-
-		@textBox.hide
-		@updateButton.hide
+	def setText(text)
+		@textBox.text = text
 	end
 
 	def showTextPanel()
@@ -367,10 +420,12 @@ class WhiteboardMainWidget < Qt::Widget
 	end
 
 	def update()
-		@canvasView.updateText(@textBox.text)
+		updateText(@textBox.text)
 	end
 end
 
+$log = Logger.new("whiteboard.log", 5, 10*1024)
+$log.level = Logger::DEBUG
 a = Qt::Application.new(ARGV)
 w = WhiteboardMainWindow.new()
 w.resize(450, 300)

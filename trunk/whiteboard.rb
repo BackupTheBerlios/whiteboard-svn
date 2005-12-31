@@ -6,10 +6,11 @@ require 'pp'
 require 'enum'
 require 'mainwindow'
 require 'logger'
+require 'object'
+require 'rectangle'
+require 'math'
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
-  slots 'insert_rectangle()', 'insert_math()'
-
   def initialize()
     super
     @toolbar = Qt::ToolBar.new("hello", self)
@@ -36,129 +37,6 @@ class ControlPoint < Qt::CanvasRectangle
   def	initialize(boundingRect, canvas, parent)
     super(boundingRect, canvas)
     @parent = parent
-  end
-end
-
-class WhiteboardObjectController
-  signals 'itemCreated(WhiteboardObject)', 'itemModified(WhiteboardObject)'
-
-  def initialize(mainWidget)
-    $log.info caller.join("\n")
-    @canvas = mainWidget.canvas
-    @mainWidget = mainWidget
-  end
-
-  def mousePress(e) end
-  def mouseMove(e) end
-  def mouseRelease(e) end
-  def create(p) end
-  def objectSelected(o) end
-end
-
-class WhiteboardObject
-  attr_reader :canvas_items
-end
-
-class Qt::CanvasRectangle
-	attr_reader :associated_object
-	attr_writer :associated_object
-end
-
-class RectangleController < WhiteboardObjectController
-  def initialize(mainWidget)
-    super(mainWidget)
-  end
-
-  def mousePress(e)
-    @point1 = Qt::Point.new(e.x, e.y)
-    @rect = WhiteboardRectangle.new(@canvas, e)
-  end
-
-  def mouseMove(e)
-    point2 = Qt::Point.new(e.pos.x, e.pos.y)
-    points = (@point1.x < point2.x) ? [@point1, point2] : [point2, @point1]
-    @rect.move(points[0].x, points[0].y)
-    size = points[1] - points[0]
-    @rect.set_size(size.x, size.y)
-    @canvas.update()
-  end
-
-  def mouseRelease(e)
-    @mainWidget.create_object(@rect)
-  end
-end
-
-class WhiteboardRectangle < WhiteboardObject
-	def initialize(canvas, e)
-		@rect = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, canvas)
-		@rect.show()
-		@rect.associated_object = self
-		@canvas_items = [@rect]
-	end
-
-	def move(x, y) @rect.move(x, y) end
-	def move_by(x, y) @rect.move_by(x, y) end
-	def set_size(x, y) @rect.setSize(x, y) end
-	def width() @rect.width end
-	def height() @rect.height end
-	def bounding_rect() @rect.bounding_rect end
-end
-
-
-class Qt::CanvasSprite
-	attr_reader :associated_object
-	attr_writer :associated_object
-end
-
-class WhiteboardMathObject < WhiteboardObject
-	attr_reader :text
-
-	def initialize(canvas, point, text)
-		@text = text
-		@point = point
-
-    system("kopete_latexconvert.sh '" + text + "'")
-    image = Qt::Image.new("out.png")
-    pix = Qt::CanvasPixmapArray.new([Qt::Pixmap.new(image)])
-    @sprite = Qt::CanvasSprite.new(pix, canvas) 
-		@sprite.associated_object = self
-    @sprite.move(@point.x, @point.y)
-    @sprite.show()
-
-		@canvas_items = [@sprite]
-
-    # we put the pixmap onto an array that will be kept, otherwise
-    # we get a segfault on garbage collection
-		$pixmaps ||= []
-		$pixmaps << pix
-	end
-
-	def move(x, y) @sprite.move(x, y) end
-	def move_by(x, y) @sprite.move_by(x, y) end
-	def set_size(x, y) end
-	def width() @sprite.width end
-	def height() @sprite.height end
-	def bounding_rect() @sprite.bounding_rect end
-end
-
-class MathController < WhiteboardObjectController
-  def initialize(mainWidget)
-    super(mainWidget)
-  end
-
-  def mousePress(e)
-    @point = Qt::Point.new(e.pos.x - @mainWidget.canvasView.x, e.pos.y - @mainWidget.canvasView.y)
-    @mainWidget.show_text_panel
-  end	
-
-  def update_text(text)
-    @mainWidget.hide_text_panel
-    @mainWidget.create_object(WhiteboardMathObject.new(@canvas, @point, text))
-  end
-
-  def objectSelected(o)
-    #@mainWidget.setText(o.
-    @mainWidget.show_text_panel
   end
 end
 
@@ -366,7 +244,10 @@ class WhiteboardMainWidget < Qt::Widget
       else
         # we only draw control points if there is only one object selected
         # todo: draw control points over the total bounding rect of selected objects
-        update_control_points(selected[0].bounding_rect) if selected.length == 1
+				if selected.length == 1
+					update_control_points(selected[0].bounding_rect) 
+					selected[0].controller.object_selected(selected[0]) #todo a bit silly
+				end
       end
     end	
 
@@ -409,7 +290,11 @@ class WhiteboardMainWidget < Qt::Widget
   end
 
   def update_text(text)
-    @state.controller.update_text(text)
+		if @state.creating?
+			@state.controller.update_text(text)
+		else
+			@state.selected_objects[0].controller.update_text(text)
+		end
   end
 
   def create_control_points()

@@ -5,18 +5,6 @@ require 'test/unit'
 
 $a = Qt::Application.new([])
 
-def left_mouse_press(w, x, y)
-	w.mousePress(Qt::MouseEvent.new(Qt::Event::MouseButtonPress, Qt::Point.new(x, y), Qt::LeftButton, 0))
-end
-
-def left_mouse_move(w, x, y)
-	w.mouseMove(Qt::MouseEvent.new(Qt::Event::MouseMove, Qt::Point.new(x, y), Qt::LeftButton, 0))
-end
-
-def left_mouse_release(w, x, y)
-	w.mouseRelease(Qt::MouseEvent.new(Qt::Event::MouseButtonRelease, Qt::Point.new(x, y), Qt::LeftButton, 0))
-end
-
 def assert_rect_equal_wh(o, x, y, width, height)
 	assert_equal(x, o.x)
 	assert_equal(y, o.y)

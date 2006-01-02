@@ -10,7 +10,7 @@ require 'object'
 require 'rectangle'
 require 'math'
 require 'line'
-require 'test/unit'
+require 'network'
 
 class Qt::Rect
 	def to_s
@@ -31,8 +31,38 @@ def total_bounding_rect(rects)
 end
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
+	slots 'timeout()', 'networkEvent(QString*)'
+
+	def timeout
+		sleep 0.01
+	end
+
+	def networkEvent(s)
+		if s.chomp == "rect"
+			statusBar().message("RRRRRR", 3000)
+			@widget.insert_rectangle()
+			@widget.left_mouse_press(10, 10)
+			@widget.left_mouse_move(30, 30)
+			@widget.left_mouse_release(30, 30)
+		else
+			statusBar().message(s, 3000)
+		end
+	end
+
   def initialize()
     super
+
+		# timer is an unfortunate hack to get the network thread called
+		# apparently you need to execute some ruby code periodically otherwise
+		# the ruby threads will never execute
+		timer = Qt::Timer.new(self)
+		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
+		timer.start(0)
+
+		b = NetworkInterface.new(2626)
+		connect(b, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
+		t = Thread.new { b.run() }
+
     @toolbar = Qt::ToolBar.new("hello", self)
     @toolbar.label = "hello"
     @toolbar.addSeparator()
@@ -329,6 +359,19 @@ class WhiteboardMainWidget < Qt::Widget
     @state.prepare_object_creation(LineController.new(self))
   end
 
+	def left_mouse_press(x, y)
+		mousePress(Qt::MouseEvent.new(Qt::Event::MouseButtonPress, Qt::Point.new(x, y), Qt::LeftButton, 0))
+	end
+
+	def left_mouse_move(x, y)
+		mouseMove(Qt::MouseEvent.new(Qt::Event::MouseMove, Qt::Point.new(x, y), Qt::LeftButton, 0))
+	end
+
+	def left_mouse_release(x, y)
+		mouseRelease(Qt::MouseEvent.new(Qt::Event::MouseButtonRelease, Qt::Point.new(x, y), Qt::LeftButton, 0))
+	end
+
+
   def update_text(text)
 		if @state.creating?
 			@state.controller.update_text(text)
@@ -342,14 +385,12 @@ class WhiteboardMainWidget < Qt::Widget
       @control_points.each { |c| c.hide() }
       @control_points = []
       NumControlPoints.times {
-        #rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas)
         rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, WhiteboardCompositeObject.new(@state.selected_objects))
         rect.z = 1 # control points go on top of object
         rect.show()
         @control_points << rect
       }
 
-      #update_control_points(o.bounding_rect)
 			update_control_points()
     else
       @control_points.each { |c| c.hide() }

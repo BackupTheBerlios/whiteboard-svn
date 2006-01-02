@@ -2,8 +2,8 @@ class Enum < Module
 	class Member < Module
 		attr_reader :enum, :index
 
-		def initialize(enum, index)
-			@enum, @index = enum, index
+		def initialize(enum, index, text)
+			@enum, @index, @text = enum, index, text
 			extend enum
 		end
 
@@ -14,14 +14,17 @@ class Enum < Module
 			@index <=> other.index
 		end
 
+		def to_s() @text end
+
 		include Comparable
 	end
 
 	def initialize(*symbols, &block)
 		@members = []
 		symbols.each_with_index do |symbol, index|
+			text = symbol.to_s
 			symbol = symbol.to_s.sub(/^[a-z]/) { |letter| letter.upcase }.to_sym
-			member = Enum::Member.new(self, index)
+			member = Enum::Member.new(self, index, text)
 			const_set(symbol, member)
 			@members << member
 		end

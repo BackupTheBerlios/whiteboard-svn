@@ -1,3 +1,4 @@
+$VERBOSE = true; $:.unshift File.dirname($0)
 require 'object'
 
 class Qt::CanvasRectangle
@@ -38,10 +39,14 @@ class WhiteboardRectangle < WhiteboardObject
 		@controller = controller
 	end
 
+	def x() @rect.x end
+	def y() @rect.y end
 	def move(x, y) @rect.move(x, y) end
 	def move_by(x, y) @rect.move_by(x, y) end
 	def set_size(x, y) @rect.setSize(x, y) end
 	def width() @rect.width end
 	def height() @rect.height end
-	def bounding_rect() @rect.bounding_rect end
+
+	# todo work out between rect/bounding_rect
+	def bounding_rect() @rect.rect end
 end

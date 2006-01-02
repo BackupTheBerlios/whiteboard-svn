@@ -73,7 +73,6 @@ class MathController < WhiteboardObjectController
   end
 
   def object_selected(o)
-    #@mainWidget.setText(o.
-    @mainWidget.show_text_panel
+    @mainWidget.show_text_panel(@canvasObject.text)
   end
 end

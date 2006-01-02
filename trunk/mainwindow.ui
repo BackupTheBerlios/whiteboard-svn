@@ -72,6 +72,7 @@
         <separator/>
         <action name="insertRectangleAction"/>
         <action name="insertMathAction"/>
+        <action name="insertLineAction"/>
         <separator/>
     </toolbar>
 </toolbars>
@@ -338,6 +339,17 @@
             <string>Math</string>
         </property>
     </action>
+    <action>
+        <property name="name">
+            <cstring>insertLineAction</cstring>
+        </property>
+        <property name="iconSet">
+            <iconset>image12</iconset>
+        </property>
+        <property name="text">
+            <string>Line</string>
+        </property>
+    </action>
 </actions>
 <images>
     <image name="image0">
@@ -375,6 +387,9 @@
     </image>
     <image name="image11">
         <data format="XPM.GZ" length="649">789cd3d7528808f055d0d2e72a2e492cc94c5648ce482c52d04a29cdcdad8c8eb5ade65232325200210543251d2e25658564056503300071f540dc34300073b102ca649481009b0c9a30b20c2ed330742064f4903442946193d1c3904118a98c2e03b703a4062ca30cf18b32c4535026861e65189314193dec32506b306494c1345416d5a7c85ec51a3fcab86450c20d0bc023536bcd0500b2877133</data>
+    </image>
+    <image name="image12">
+        <data format="XPM.GZ" length="473">789cd3d7528808f055d0d2e72a2e492cc94c5648ce482c52d04a29cdcdad8c8eb5ade65232b4500022230543251d2e25658564056503300071f540dc3430007331005e51651244d184e1e62a63154511467283325651246114f72a93200a17461355c6260a538d21aa8c4d14bb0978456badb9006c28553f</data>
     </image>
 </images>
 <connections>
@@ -469,9 +484,6 @@
         <slot>helpAbout()</slot>
     </connection>
 </connections>
-<includes>
-    <include location="local" impldecl="in implementation">mainwindow.ui.h</include>
-</includes>
 <slots>
     <slot>fileNew()</slot>
     <slot>fileOpen()</slot>

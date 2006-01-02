@@ -9,6 +9,26 @@ require 'logger'
 require 'object'
 require 'rectangle'
 require 'math'
+require 'line'
+require 'test/unit'
+
+class Qt::Rect
+	def to_s
+		"(#{x}, #{y}), (#{x + width}, #{y + height})"
+	end
+end
+	
+def total_bounding_rect(rects)
+	left, right, top, bottom = rects[0].left, rects[0].right, rects[0].top, rects[0].bottom
+	(1...rects.length).each do |i|
+		rect = rects[i]
+		left = rect.left if rect.left < left
+		right = rect.right if rect.right > right
+		top = rect.top if rect.top < top
+		bottom = rect.bottom if rect.bottom > bottom
+	end
+	Qt::Rect.new(Qt::Point.new(left, top), Qt::Point.new(right, bottom))
+end
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
   def initialize()
@@ -28,6 +48,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 
     connect( @insertRectangleAction, SIGNAL('activated()'), @widget, SLOT('insert_rectangle()') )
     connect( @insertMathAction, SIGNAL('activated()'), @widget, SLOT('insert_math()') )
+    connect( @insertLineAction, SIGNAL('activated()'), @widget, SLOT('insert_line()') )
   end
 end
 
@@ -59,7 +80,7 @@ class WhiteboardView < Qt::CanvasView
 end
 
 class WhiteboardState
-  attr_reader :controller, :selected_objects, :canvas_items
+  attr_reader :controller, :selected_objects, :objects, :canvas_items, :state
 
   def initialize()
     @@states = Enum.new(:Default, :Selecting, :Resizing, :Creating)
@@ -70,7 +91,7 @@ class WhiteboardState
     @selected_objects = []
     @state = @@states::Default
     @canvas_items = []
-    @items = [] 
+    @objects = [] 
   end
 
   def deselect_all()
@@ -93,6 +114,7 @@ class WhiteboardState
   end
   
   def create_object(object)
+		@objects << object
     object.canvas_items.each { |it| @canvas_items << it }
     @controller = nil
     @state = @@states::Default
@@ -104,13 +126,15 @@ class WhiteboardState
 
   def creating?() @state == @@states::Creating end
   def selecting?() @state == @@states::Selecting end
+
+	def to_s() @state.to_s end
 end
 
 class WhiteboardMainWidget < Qt::Widget
-  attr_reader :canvasView, :canvas, :pixmaps
+  attr_reader :canvasView, :canvas, :pixmaps, :state
 
   slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
-		'insert_rectangle()', 'insert_math()'
+		'insert_rectangle()', 'insert_math()', 'insert_line()'
 
   ControlPointSize = 10
   ObjectMinimumSize = 5
@@ -153,8 +177,6 @@ class WhiteboardMainWidget < Qt::Widget
 
     @state = WhiteboardState.new()
     
-    @pixmaps = [] # we keep all the pixmaps to avoid segfaults on garbage collection
-    
     # when a single object is selected, control points are 
     # drawn at each corner of the object and at the middle of each edge,
     # to allow the object to be resized
@@ -166,7 +188,7 @@ class WhiteboardMainWidget < Qt::Widget
   def mousePress(e)
     list = @canvas.collisions(e.pos)
 
-    if @state.creating?  #todo
+    if @state.creating? 
       @state.controller.mousePress(e)
     elsif list.empty?
       @state.deselect_all()
@@ -185,6 +207,9 @@ class WhiteboardMainWidget < Qt::Widget
       elsif @state.selected_objects.index(list[0].associated_object) == nil
         # i.e, if we click on an object that is already selected, do nothing
         @state.select_objects([list[0].associated_object])
+				if @state.selected_objects.length == 1
+					@state.selected_objects[0].controller.object_selected(@state.selected_objects[0])
+				end
 				@state.set_default()
         create_control_points() 
       end
@@ -200,12 +225,11 @@ class WhiteboardMainWidget < Qt::Widget
     @canvas.update
   end
 
+
   def mouseMove(e)
     if @state.creating?
-      @state.controller.mouseMove(e) #todo
+      @state.controller.mouseMove(e)
     elsif @state.selecting?
-      $log.info "mouse move on selecting"
-    
       point1, point2 = @selectionPoint1, e.pos
       point1, point2 = point2, point1 if point2.x < point1.x
       @selection_rectangle.move(point1.x, point1.y)
@@ -218,6 +242,9 @@ class WhiteboardMainWidget < Qt::Widget
       collisions = @canvas.collisions(@selection_rectangle.rect)
       @state.select_objects(@state.canvas_items.select{|r| collisions.index(r) != nil}.map{|i| i.associated_object})
       create_control_points()
+			if @state.selected_objects.length > 0
+				update_control_points(total_bounding_rect(@state.selected_objects.map {|i| i.bounding_rect}))
+			end
     else
       @state.selected_objects.each { |i| i.move_by(e.x - @mouse_pos.x, e.y - @mouse_pos.y) }
       dx, dy = e.pos.x - @mouse_pos.x, e.pos.y - @mouse_pos.y
@@ -231,6 +258,7 @@ class WhiteboardMainWidget < Qt::Widget
         cp = @rect_hash[selected[0]]
         new_width = current_object.width + cp[0]*dx
         new_height = current_object.height + cp[1]*dy
+
         # to avoid strangeness when we resize an object to zero size
         # we stop the user from moving the control point to a size smaller than ObjectMinimumSize
         # todo: make this better
@@ -243,9 +271,13 @@ class WhiteboardMainWidget < Qt::Widget
         update_control_points(current_object.bounding_rect)
       else
         # we only draw control points if there is only one object selected
-        # todo: draw control points over the total bounding rect of selected objects
+				if selected.length > 0
+					update_control_points(total_bounding_rect(@state.selected_objects.map {|i| i.bounding_rect}))
+				else
+					@control_points.each { |c| c.hide() }
+					@control_points = []
+				end
 				if selected.length == 1
-					update_control_points(selected[0].bounding_rect) 
 					selected[0].controller.object_selected(selected[0]) #todo a bit silly
 				end
       end
@@ -288,6 +320,10 @@ class WhiteboardMainWidget < Qt::Widget
   def insert_math()
     @state.prepare_object_creation(MathController.new(self))
   end
+  
+	def insert_line()
+    @state.prepare_object_creation(LineController.new(self))
+  end
 
   def update_text(text)
 		if @state.creating?
@@ -298,20 +334,20 @@ class WhiteboardMainWidget < Qt::Widget
   end
 
   def create_control_points()
-    if @state.selected_objects.length == 1
-      o = @state.selected_objects[0]
-      
+		# work in progress
+    if @state.selected_objects.length > 0
       @control_points.each { |c| c.hide() }
       @control_points = []
       NumControlPoints.times {
-        rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, o)
+				#todo maybe dup this?
+        rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, WhiteboardCompositeObject.new(@state.selected_objects))
         rect.z = 1 # control points go on top of object
         rect.show()
         @control_points << rect
       }
 
-      $log.info "blah #{o.class}"
-      update_control_points(o.bounding_rect)
+      #update_control_points(o.bounding_rect)
+			update_control_points(total_bounding_rect(@state.selected_objects.map {|o| o.bounding_rect}))
     else
       @control_points.each { |c| c.hide() }
       @control_points = []
@@ -322,7 +358,8 @@ class WhiteboardMainWidget < Qt::Widget
     @text_box.text = text
   end
 
-  def show_text_panel()
+  def show_text_panel(text = nil)
+		@text_box.text = text if text != nil
     @text_box.show
     @text_box.setFocus
     @update_button.show
@@ -338,12 +375,4 @@ class WhiteboardMainWidget < Qt::Widget
   end
 end
 
-$log = Logger.new("whiteboard.log", 5, 10*1024)
-$log.level = Logger::DEBUG
-a = Qt::Application.new(ARGV)
-w = WhiteboardMainWindow.new()
-w.resize(450, 300)
-w.show()
-a.setMainWidget(w)
-#Qt::Internal::setDebug Qt::QtDebugChannel::QTDB_GC
-a.exec
+

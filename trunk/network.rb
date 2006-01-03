@@ -10,6 +10,7 @@ class NetworkInterface < Qt::Object
     @serverSocket = TCPServer.new("", port)
     @serverSocket.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
 		@descriptors = [@serverSocket]
+		@peers = []
 		@action = action
   end # initialize
 
@@ -37,7 +38,14 @@ class NetworkInterface < Qt::Object
 							# we translate the newline characters as the YAML string
 							# is multiple lines but when we receive we only get one line at a time
 							received = sock.gets().tr('#', "\n")
-							emit event(received)
+							puts "received #{received}"
+							m = received.match(/hello:([^:]*):(\d*)/)
+							if m != nil
+								puts "received hello"
+								@peers << TCPSocket.open(m[1], m[2].to_s)
+							else
+								emit event(received)
+							end
 						end
 					end
 				end
@@ -49,8 +57,8 @@ class NetworkInterface < Qt::Object
 		# we translate the newline characters as the YAML string
 		# is multiple lines but when we receive we only get one line at a time
 		str2 = str.tr("\n", '#')
-		@descriptors.each do |clisock|
-			if clisock != @serverSocket and clisock != omit_sock
+		@peers.each do |clisock|
+			if clisock != @serverSocket and clisock != omit_sock 
 				puts "writing #{str2} to #{clisock.peeraddr[1]}"
 				
 				# why do i have to this instead of the next line???
@@ -62,7 +70,9 @@ class NetworkInterface < Qt::Object
 	end 
 
 	def add_peer(location, port)
-		@descriptors << TCPSocket.open(location, port)
+		sock = TCPSocket.open(location, port)
+		@peers << sock
+		#sock.send("hello:#{location}:#{port}", 0)
 	end
 end #server
 

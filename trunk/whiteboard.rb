@@ -58,9 +58,11 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 	end
 
 	def network_connect()
-		text = Qt::InputDialog.get_text('blah', 'address?')
-		@network_interface.add_peer('localhost', text.to_i)
-		#TCPSocket.open('localhost', text.to_i).send("rect", 0)
+		text = Qt::InputDialog.get_text('Whiteboard', 'Please enter the address (host:port) to connect to:')
+		if text != nil
+			address, port = text.split(':')
+			@network_interface.add_peer(address, port.to_i)
+		end
 	end	
 
   def initialize()
@@ -91,8 +93,8 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
 		timer.start(0)
 
-		@network_interface = NetworkInterface.new(ARGV[0] || 2626)
-		set_caption("Whiteboard: #{ARGV[0] || 2626}")
+		@network_interface = NetworkInterface.new(ARGV[1] || 2626)
+		set_caption("Whiteboard: #{ARGV[1] || 2626}")
 		connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
 		connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
 		t = Thread.new { @network_interface.run() }
@@ -285,6 +287,7 @@ class WhiteboardMainWidget < Qt::Widget
     @canvas.update()
 		if broadcast == true and @network_interface != nil then
 			puts "we got here coz broadcast is true"
+			@network_interface.broadcast_string("hello:#{ARGV[0]}:#{ARGV[1]}", nil)
 			@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}", nil)
 		end
 		#j = YAML.load(YAML.dump(item.to_yaml_object())).to_actual_object(self) 

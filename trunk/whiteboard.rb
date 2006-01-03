@@ -94,7 +94,8 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		timer.start(0)
 
 		@network_interface = NetworkInterface.new(ARGV[1] || 2626)
-		set_caption("Whiteboard: #{ARGV[1] || 2626}")
+		remove_this = ARGV[0][1..-1]
+		set_caption("Whiteboard: #{remove_this}:#{ARGV[1] || 2626}")
 		connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
 		connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
 		t = Thread.new { @network_interface.run() }
@@ -287,7 +288,8 @@ class WhiteboardMainWidget < Qt::Widget
     @canvas.update()
 		if broadcast == true and @network_interface != nil then
 			puts "we got here coz broadcast is true"
-			@network_interface.broadcast_string("hello:#{ARGV[0]}:#{ARGV[1]}", nil)
+			remove_this = (ARGV[0])[1..-1]
+			@network_interface.broadcast_string("hello:#{remove_this}:#{ARGV[1]}", nil)
 			@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}", nil)
 		end
 		#j = YAML.load(YAML.dump(item.to_yaml_object())).to_actual_object(self) 

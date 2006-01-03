@@ -9,14 +9,21 @@ class Qt::CanvasLine
 	end
 end
 
-class LineController < WhiteboardObjectController
+class WhiteboardLine < WhiteboardObject
   def initialize(mainWidget)
     super(mainWidget)
   end
 
   def mousePress(e)
     @point1 = Qt::Point.new(e.x, e.y)
-    @line = WhiteboardLine.new(@canvas, e, self)
+		
+		@line = Qt::CanvasLine.new(@canvas)
+		@line.set_points(e.pos.x, e.pos.y, e.pos.x + 1, e.pos.y + 1)
+		@line.show()
+		@line.associated_object = self
+		@canvas_items = [@line]
+
+		@canvas.update()
   end
 
   def mouseMove(e)
@@ -25,22 +32,9 @@ class LineController < WhiteboardObjectController
   end
 
   def mouseRelease(e)
-    @mainWidget.create_object(@line)
+    @mainWidget.create_object(self)
   end
-end
-
-class WhiteboardLine < WhiteboardObject
-	def initialize(canvas, e, controller)
-		@line = Qt::CanvasLine.new(canvas)
-		@line.set_points(e.pos.x, e.pos.y, e.pos.x + 1, e.pos.y + 1)
-		@line.show()
-		@line.associated_object = self
-		@canvas_items = [@line]
-		@controller = controller
-
-		canvas.update()
-	end
-
+	
 	def set_points(*args) @line.set_points(*args) end
 
 	def move(x, y) @line.move(x, y) end
@@ -50,4 +44,3 @@ class WhiteboardLine < WhiteboardObject
 	def height() (@line.endPoint.y - @line.startPoint.y).abs end
 	def bounding_rect() @line.bounding_rect end
 end
-

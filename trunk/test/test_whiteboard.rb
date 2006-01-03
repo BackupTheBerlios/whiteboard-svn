@@ -29,9 +29,9 @@ class TestWhiteboard < Test::Unit::TestCase
 		w = WhiteboardMainWidget.new(nil)
 		w.insert_rectangle()
 		assert_equal(true, w.state.creating?)
-		left_mouse_press(w, 10, 10)
-		left_mouse_move(w, 30, 30)
-		left_mouse_release(w, 30, 30)
+		w.left_mouse_press(10, 10)
+		w.left_mouse_move(30, 30)
+		w.left_mouse_release(30, 30)
 		assert_equal(1, w.state.objects.length)
 		assert_equal(true, w.state.objects[0].is_a?(WhiteboardRectangle))
 		assert_rect_equal_wh(w.state.objects[0], 10, 10, 20, 20)
@@ -40,11 +40,11 @@ class TestWhiteboard < Test::Unit::TestCase
 	def test_create_rects()
 		w = WhiteboardMainWidget.new(nil)
 		w.insert_rectangle()
-		left_mouse_press(w, 10, 10)
-		left_mouse_release(w, 10, 10)
+		w.left_mouse_press(10, 10)
+		w.left_mouse_release(10, 10)
 		w.insert_rectangle()
-		left_mouse_press(w, 10, 10)
-		left_mouse_release(w, 10, 10)
+		w.left_mouse_press(10, 10)
+		w.left_mouse_release(10, 10)
 		assert_equal(w.state.objects.length, 2)
 		assert_equal(true, w.state.objects[0].is_a?(WhiteboardRectangle))
 		assert_equal(true, w.state.objects[1].is_a?(WhiteboardRectangle))
@@ -53,23 +53,23 @@ class TestWhiteboard < Test::Unit::TestCase
 	def test_resize_rect()
 		w = WhiteboardMainWidget.new(nil)
 		w.insert_rectangle()
-		left_mouse_press(w, 10, 10)
-		left_mouse_move(w, 30, 30)
-		left_mouse_release(w, 30, 30)
+		w.left_mouse_press(10, 10)
+		w.left_mouse_move(30, 30)
+		w.left_mouse_release(30, 30)
 
 		## notice we have to move to the end point before we release
 		## we should probably not have to do this
 	
-		left_mouse_press(w, 30, 30)	
-		left_mouse_release(w, 30, 30)	
+		w.left_mouse_press(30, 30)	
+		w.left_mouse_release(30, 30)	
 		assert_equal(1, w.state.selected_objects.length)
 		assert_rect_equal_wh(w.state.objects[0], 10, 10, 20, 20)
 
-		left_mouse_press(w, 30, 30)
+		w.left_mouse_press(30, 30)
 		assert_equal("Resizing", w.state.to_s)
 
-		left_mouse_move(w, 50, 30)
-		left_mouse_release(w, 50, 30)
+		w.left_mouse_move(50, 30)
+		w.left_mouse_release(50, 30)
 		
 		assert_rect_equal_wh(w.state.objects[0], 10, 10, 40, 20)
 	end
@@ -84,24 +84,24 @@ class TestWhiteboard < Test::Unit::TestCase
 	def test_selection()
 		w = WhiteboardMainWidget.new(nil)
 		w.insert_rectangle()
-		left_mouse_press(w, 10, 10)
-		left_mouse_move(w, 30, 30)
-		left_mouse_release(w, 30, 30)
+		w.left_mouse_press(10, 10)
+		w.left_mouse_move(30, 30)
+		w.left_mouse_release(30, 30)
 
 		w.insert_rectangle()
-		left_mouse_press(w, 50, 10)
-		left_mouse_move(w, 70, 30)
-		left_mouse_release(w, 70, 30)
+		w.left_mouse_press(50, 10)
+		w.left_mouse_move(70, 30)
+		w.left_mouse_release(70, 30)
 
-		left_mouse_press(w, 5, 5)
+		w.left_mouse_press(5, 5)
 		assert_equal("Selecting", w.state.to_s)
 		assert_equal(0, w.state.selected_objects.length)
 
-		left_mouse_move(w, 15, 15)
+		w.left_mouse_move(15, 15)
 		assert_equal("Selecting", w.state.to_s)
 		assert_equal(1, w.state.selected_objects.length)
 
-		left_mouse_move(w, 55, 15)
+		w.left_mouse_move(55, 15)
 		assert_equal("Selecting", w.state.to_s)
 		assert_equal(2, w.state.selected_objects.length)
 	end
@@ -113,6 +113,9 @@ class TestWhiteboard < Test::Unit::TestCase
 		w.set_size(50, 50)
 		assert_equal(50, r.width)
 		assert_equal(50, r.height)
+		w.set_size(70, 70)
+		assert_equal(70, r.width)
+		assert_equal(70, r.height)
 	end
 
 	def test_composite_object_multiple()
@@ -141,7 +144,7 @@ end
 
 class DummyRect < Qt::Rect
 	def initialize(a, b, c, d) super(a, b, c, d) end
-	def bounding_rect() self end
+	def bounding_rect() Qt::Rect.new(top_left(), bottom_right()) end
 	def move(x, y) move_top_left(Qt::Point.new(x, y)) end
 	def set_size(w, h) 
 		set_width(w)

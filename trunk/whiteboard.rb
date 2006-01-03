@@ -11,6 +11,8 @@ require 'rectangle'
 require 'math'
 require 'line'
 require 'network'
+require 'drb'
+require 'yaml'
 
 class Qt::Rect
 	def to_s
@@ -31,37 +33,38 @@ def total_bounding_rect(rects)
 end
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
-	slots 'timeout()', 'networkEvent(QString*)'
-
-	def timeout
-		sleep 0.01
-	end
+  slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
+		'insert_rectangle()', 'insert_math()', 'insert_line()', 'timeout()', 'networkEvent(QString*)', 
+		'connection(QString*, int)', 'network_connect()'
+	
+	def timeout() end
 
 	def networkEvent(s)
-		if s.chomp == "rect"
-			statusBar().message("RRRRRR", 3000)
-			@widget.insert_rectangle()
-			@widget.left_mouse_press(10, 10)
-			@widget.left_mouse_move(30, 30)
-			@widget.left_mouse_release(30, 30)
-		else
-			statusBar().message(s, 3000)
+		m = s.match(Regexp.new('creating:(.*)', Regexp::MULTILINE))
+		if m != nil
+			puts "matched #{m[1]}"
+			r = YAML.load(m[1].to_s).to_actual_object(@widget) 
+			@widget.create_object(r, false)
+			#@widget.insert_rectangle()
+#			@widget.left_mouse_press(10, 10)
+#			@widget.left_mouse_move(30, 30)
+#			@widget.left_mouse_release(30, 30)
 		end
+		statusBar().message(s, 3000)
 	end
+
+	def connection(addr, port)
+		statusBar().message("Connection! #{addr}:#{port}", 3000)
+	end
+
+	def network_connect()
+		text = Qt::InputDialog.get_text('blah', 'address?')
+		@network_interface.add_peer('localhost', text.to_i)
+		#TCPSocket.open('localhost', text.to_i).send("rect", 0)
+	end	
 
   def initialize()
     super
-
-		# timer is an unfortunate hack to get the network thread called
-		# apparently you need to execute some ruby code periodically otherwise
-		# the ruby threads will never execute
-		timer = Qt::Timer.new(self)
-		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
-		timer.start(0)
-
-		b = NetworkInterface.new(2626)
-		connect(b, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
-		t = Thread.new { b.run() }
 
     @toolbar = Qt::ToolBar.new("hello", self)
     @toolbar.label = "hello"
@@ -79,6 +82,22 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
     connect( @insertRectangleAction, SIGNAL('activated()'), @widget, SLOT('insert_rectangle()') )
     connect( @insertMathAction, SIGNAL('activated()'), @widget, SLOT('insert_math()') )
     connect( @insertLineAction, SIGNAL('activated()'), @widget, SLOT('insert_line()') )
+		connect(@connectAction, SIGNAL('activated()'), SLOT('network_connect()'))
+		
+		# timer is an unfortunate hack to get the network thread called.
+		# apparently you need to execute some ruby code periodically otherwise
+		# the ruby threads will never execute
+		timer = Qt::Timer.new(self)
+		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
+		timer.start(0)
+
+		@network_interface = NetworkInterface.new(ARGV[0] || 2626)
+		set_caption("Whiteboard: #{ARGV[0] || 2626}")
+		connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
+		connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
+		t = Thread.new { @network_interface.run() }
+
+		@widget.network_interface = @network_interface
   end
 end
 
@@ -166,14 +185,17 @@ class WhiteboardState
 end
 
 class WhiteboardMainWidget < Qt::Widget
-  attr_reader :canvasView, :canvas, :pixmaps, :state
+  attr_reader :canvasView, :canvas, :pixmaps, :state, :network_interface
+	attr_writer :network_interface
 
   slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
-		'insert_rectangle()', 'insert_math()', 'insert_line()'
-
-  ControlPointSize = 10
+		'insert_rectangle()', 'insert_math()', 'insert_line()', 'timeout()', 'networkEvent(QString*)', 
+		'connection(QString*, int)'
+  
+	ControlPointSize = 10
   ObjectMinimumSize = 5
 	NumControlPoints = 8
+
 
   def initialize(parent)
     super(parent)
@@ -217,6 +239,8 @@ class WhiteboardMainWidget < Qt::Widget
     # to allow the object to be resized
     @control_points = []
 
+		@network_interface = nil
+		
     show()
   end
 
@@ -243,7 +267,7 @@ class WhiteboardMainWidget < Qt::Widget
         # i.e, if we click on an object that is already selected, do nothing
         @state.select_objects([list[0].associated_object])
 				if @state.selected_objects.length == 1
-					@state.selected_objects[0].controller.object_selected(@state.selected_objects[0])
+					@state.selected_objects[0].select_object()
 				end
 				@state.set_default()
         create_control_points() 
@@ -252,12 +276,19 @@ class WhiteboardMainWidget < Qt::Widget
     @mouse_button_state = @@mouseStates::Down
     @mouse_pos = Qt::Point.new(e.x, e.y)
 
-    @canvas.update
+    @canvas.update()
   end
   
-  def create_object(item)	
+  def create_object(item, broadcast = true)	
+		puts "well we're creating a #{item.class.to_s} objeck"
     @state.create_object(item)
-    @canvas.update
+    @canvas.update()
+		if broadcast == true and @network_interface != nil then
+			puts "we got here coz broadcast is true"
+			@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}", nil)
+		end
+		#j = YAML.load(YAML.dump(item.to_yaml_object())).to_actual_object(self) 
+		#j.set_main_widget(self)
   end
 
   def mouseMove(e)
@@ -310,7 +341,7 @@ class WhiteboardMainWidget < Qt::Widget
 				@control_points = []
 			end
 			if selected.length == 1
-				selected[0].controller.object_selected(selected[0]) #todo a bit silly
+				selected[0].select_object()
 			end
 		end
 
@@ -348,15 +379,15 @@ class WhiteboardMainWidget < Qt::Widget
   end
 
   def insert_rectangle()
-    @state.prepare_object_creation(RectangleController.new(self))
+    @state.prepare_object_creation(WhiteboardRectangle.new(self))
   end
   
   def insert_math()
-    @state.prepare_object_creation(MathController.new(self))
+    @state.prepare_object_creation(WhiteboardMathObject.new(self))
   end
   
 	def insert_line()
-    @state.prepare_object_creation(LineController.new(self))
+    @state.prepare_object_creation(WhiteboardLine.new(self))
   end
 
 	def left_mouse_press(x, y)

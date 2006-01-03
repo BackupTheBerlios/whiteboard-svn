@@ -1,20 +1,21 @@
-class WhiteboardObjectController
-  signals 'itemCreated(WhiteboardObject)', 'itemModified(WhiteboardObject)'
+class WhiteboardObject
+  attr_reader :canvas_items, :controller
 
-  def initialize(mainWidget)
-    @canvas = mainWidget.canvas
-    @mainWidget = mainWidget
+	def set_main_widget(main_widget)
+    @canvas = main_widget.canvas
+    @mainWidget = main_widget
+		@network_interface = main_widget.network_interface
+	end
+
+  def initialize(main_widget)
+		set_main_widget(main_widget)
   end
 
   def mousePress(e) end
   def mouseMove(e) end
   def mouseRelease(e) end
   def create(p) end
-  def object_selected(o) end
-end
-
-class WhiteboardObject
-  attr_reader :canvas_items, :controller
+  def select_object() end
 end
 
 class WhiteboardCompositeObject

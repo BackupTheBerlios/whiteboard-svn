@@ -39,7 +39,7 @@ class NetworkServer < Qt::Object
 	def initialize(port)
 		super(nil)
 		@port = port
-		@server = TCPServer.new('localhost', port)
+		@server = TCPServer.new('', port)
 		@server.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
 		@sessions = []
 	end

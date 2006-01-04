@@ -12,6 +12,7 @@ class WhiteboardMathObject < WhiteboardObject
   def initialize(mainWidget)
     super(mainWidget)
 		@canvasObject = nil
+		@sprite = nil
   end
 
   def mousePress(e)
@@ -19,41 +20,11 @@ class WhiteboardMathObject < WhiteboardObject
     @mainWidget.show_text_panel()
   end	
 
-  def update_text(text)
-    @mainWidget.hide_text_panel()
-		if @canvasObject == nil
-			@text = text
+	private
+	def set_text(text)
+		@text = text
 
-			system("kopete_latexconvert.sh '" + text + "'")
-			image = Qt::Image.new("out.png")
-			pix = Qt::CanvasPixmapArray.new([Qt::Pixmap.new(image)])
-			@sprite = Qt::CanvasSprite.new(pix, @canvas) 
-			@sprite.associated_object = self
-			@sprite.move(@point.x, @point.y)
-			@sprite.show()
-
-			@canvas_items = [@sprite]
-
-			# we put the pixmap onto an array that will be kept, otherwise
-			# we get a segfault on garbage collection
-			$pixmaps ||= []
-			$pixmaps << pix
-			@mainWidget.create_object(self)
-		else
-			@canvasObject.text = text
-			@canvas.update()
-		end
-  end
-
-	def to_yaml_object()
-		MathYamlObject.new(@sprite.x, @sprite.y, @text)
-	end
-
-	def from_yaml_object(o)
-		@point = Qt::Point.new(o.x, o.y)
-		@text = o.text
-
-		system("kopete_latexconvert.sh '" + @text + "'")
+		system("kopete_latexconvert.sh '" + text + "'")
 		image = Qt::Image.new("out.png")
 		pix = Qt::CanvasPixmapArray.new([Qt::Pixmap.new(image)])
 		@sprite = Qt::CanvasSprite.new(pix, @canvas) 
@@ -67,19 +38,31 @@ class WhiteboardMathObject < WhiteboardObject
 		# we get a segfault on garbage collection
 		$pixmaps ||= []
 		$pixmaps << pix
-		self
 	end
 
-	def text=(text)
-		@text = text
-    system("kopete_latexconvert.sh '" + text + "'")
-    image = Qt::Image.new("out.png")
-    pix = Qt::CanvasPixmapArray.new([Qt::Pixmap.new(image)])
-    @sprite.set_sequence(pix)
-		
-		@canvas_items = [@sprite]
-		$pixmaps ||= []
-		$pixmaps << pix
+	public
+  def update_text(text)
+    @mainWidget.hide_text_panel()
+		if @sprite != nil
+			@sprite.hide()
+			@sprite = nil
+			set_text(text)
+		else
+			set_text(text)
+			@mainWidget.create_object(self)
+		end
+
+		@canvas.update()
+  end
+
+	def to_yaml_object()
+		MathYamlObject.new(@sprite.x, @sprite.y, @text)
+	end
+
+	def from_yaml_object(o)
+		@point = Qt::Point.new(o.x, o.y)
+		set_text(o.text)
+		self
 	end
 
   def select_object()

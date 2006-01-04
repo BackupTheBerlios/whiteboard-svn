@@ -1,5 +1,6 @@
 class WhiteboardObject
-  attr_reader :canvas_items, :controller
+  attr_reader :canvas_items, :controller, :whiteboard_object_id
+	@@num_objects = 0
 
 	def set_main_widget(main_widget)
     @canvas = main_widget.canvas
@@ -9,6 +10,9 @@ class WhiteboardObject
 
   def initialize(main_widget)
 		set_main_widget(main_widget)
+		@whiteboard_object_id = "#{$host}:#{@@num_objects}"
+		puts "object id is #{@whiteboard_object_id}"
+		@@num_objects += 1
   end
 
   def mousePress(e) end

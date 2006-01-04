@@ -35,7 +35,7 @@ end
 class WhiteboardMainWindow < WhiteboardMainWindowUI
   slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
 		'insert_rectangle()', 'insert_math()', 'insert_line()', 'timeout()', 'networkEvent(QString*)', 
-		'connection(QString*, int)', 'network_connect()'
+		'connection(QString*, int)', 'network_connect()', 'start_server()'
 	
 	def timeout() end
 
@@ -45,10 +45,11 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 			puts "matched #{m[1]}"
 			r = YAML.load(m[1].to_s).to_actual_object(@widget) 
 			@widget.create_object(r, false)
-			#@widget.insert_rectangle()
-#			@widget.left_mouse_press(10, 10)
-#			@widget.left_mouse_move(30, 30)
-#			@widget.left_mouse_release(30, 30)
+		end
+		m = s.match(Regexp.new('move:([^:]*)([^:]*)([^:]*)([^:]*)([^:]*)'))
+		if m != nil
+			puts "well we got the move message..."
+			@widget.move_object(m[1] + m[2] + m[3], m[4].to_i, m[5].to_i)
 		end
 		statusBar().message(s, 3000)
 	end
@@ -61,9 +62,19 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		text = Qt::InputDialog.get_text('Whiteboard', 'Please enter the address (host:port) to connect to:')
 		if text != nil
 			address, port = text.split(':')
-			@network_interface.add_peer(address, port.to_i)
+			@network_interface.start_client(address, port.to_i)
+			t = Thread.new { @network_interface.run() }
+			statusBar().message("Connected", 2000)
+		else
+			statusBar().message("Connection cancelled", 2000)
 		end
 	end	
+
+	def start_server()
+		@network_interface.start_server($port)
+		t = Thread.new { @network_interface.run() }
+		statusBar().message("Server started on port #{$port}", 2000)
+	end
 
   def initialize()
     super
@@ -85,6 +96,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
     connect( @insertMathAction, SIGNAL('activated()'), @widget, SLOT('insert_math()') )
     connect( @insertLineAction, SIGNAL('activated()'), @widget, SLOT('insert_line()') )
 		connect(@connectAction, SIGNAL('activated()'), SLOT('network_connect()'))
+		connect(@startServerAction, SIGNAL('activated()'), SLOT('start_server()'))
 		
 		# timer is an unfortunate hack to get the network thread called.
 		# apparently you need to execute some ruby code periodically otherwise
@@ -93,12 +105,11 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
 		timer.start(0)
 
-		@network_interface = NetworkInterface.new(ARGV[1] || 2626)
-		remove_this = ARGV[0][1..-1]
-		set_caption("Whiteboard: #{remove_this}:#{ARGV[1] || 2626}")
+		@network_interface = NetworkInterface.new()
+		set_caption("Whiteboard: #{$port}")
 		connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
-		connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
-		t = Thread.new { @network_interface.run() }
+		#connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
+		#t = Thread.new { @network_interface.run() }
 
 		@widget.network_interface = @network_interface
   end
@@ -199,7 +210,6 @@ class WhiteboardMainWidget < Qt::Widget
   ObjectMinimumSize = 5
 	NumControlPoints = 8
 
-
   def initialize(parent)
     super(parent)
         
@@ -283,18 +293,16 @@ class WhiteboardMainWidget < Qt::Widget
   end
   
   def create_object(item, broadcast = true)	
-		puts "well we're creating a #{item.class.to_s} objeck"
     @state.create_object(item)
     @canvas.update()
-		if broadcast == true and @network_interface != nil then
-			puts "we got here coz broadcast is true"
-			remove_this = (ARGV[0])[1..-1]
-			@network_interface.broadcast_string("hello:#{remove_this}:#{ARGV[1]}", nil)
-			@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}", nil)
+		if broadcast and @network_interface != nil then
+			@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}")
 		end
-		#j = YAML.load(YAML.dump(item.to_yaml_object())).to_actual_object(self) 
-		#j.set_main_widget(self)
   end
+
+	def move_object(whiteboard_object_id, x, y)
+		@state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }.move(x, y)
+	end
 
   def mouseMove(e)
     if @state.creating?
@@ -335,7 +343,11 @@ class WhiteboardMainWidget < Qt::Widget
 			current_object.move_by(cp[0] == -1 ? dx : 0, cp[1] == -1 ? dy : 0) 
 			update_control_points()
 		else
-			@state.selected_objects.each { |i| i.move_by(e.x - @mouse_pos.x, e.y - @mouse_pos.y) }
+			@state.selected_objects.each do |i|
+				i.move_by(e.x - @mouse_pos.x, e.y - @mouse_pos.y)
+				puts "now object id is #{i.whiteboard_object_id.to_s}"
+				@network_interface.broadcast_string("move:#{i.whiteboard_object_id}:#{i.x}:#{i.y}")
+			end
 
 			selected = @state.selected_objects
 

@@ -37,10 +37,11 @@ class WhiteboardRectangle < WhiteboardObject
   end
 
 	def to_yaml_object()
-		RectangleYamlObject.new(@rect.x, @rect.y, @rect.width, @rect.height)
+		RectangleYamlObject.new(@whiteboard_object_id, @rect.x, @rect.y, @rect.width, @rect.height)
 	end
 
 	def from_yaml_object(y)
+		@whiteboard_object_id = y.whiteboard_object_id
 		@rect.move(y.x, y.y)
 		@rect.set_size(y.width, y.height)
 		@rect.show()
@@ -59,14 +60,14 @@ class WhiteboardRectangle < WhiteboardObject
 end
 
 class RectangleYamlObject
-	attr_reader :x, :y, :width, :height
+	attr_reader :whiteboard_object_id, :x, :y, :width, :height
 
-	def initialize(x, y, width, height)
-		@x, @y, @width, @height = x, y, width, height
+	def initialize(whiteboard_object_id, x, y, width, height)
+		@whiteboard_object_id, @x, @y, @width, @height = whiteboard_object_id, x, y, width, height
 	end
 	
 	def to_yaml_properties()
-		%w{ @x @y @width @height }
+		%w{ @whiteboard_object_id @x @y @width @height }
 	end
 
 	def to_actual_object(main_widget)

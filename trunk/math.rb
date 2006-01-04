@@ -53,7 +53,7 @@ class WhiteboardMathObject < WhiteboardObject
 		@point = Qt::Point.new(o.x, o.y)
 		@text = o.text
 
-		system("kopete_latexconvert.sh '" + text + "'")
+		system("kopete_latexconvert.sh '" + @text + "'")
 		image = Qt::Image.new("out.png")
 		pix = Qt::CanvasPixmapArray.new([Qt::Pixmap.new(image)])
 		@sprite = Qt::CanvasSprite.new(pix, @canvas) 
@@ -78,13 +78,16 @@ class WhiteboardMathObject < WhiteboardObject
     @sprite.set_sequence(pix)
 		
 		@canvas_items = [@sprite]
+		$pixmaps ||= []
 		$pixmaps << pix
 	end
 
   def select_object()
     @mainWidget.show_text_panel(@text)
   end
-	
+
+	def x() @sprite.x end
+	def y() @sprite.y end	
 	def move(x, y) @sprite.move(x, y) end
 	def move_by(x, y) @sprite.move_by(x, y) end
 	def set_size(x, y) end

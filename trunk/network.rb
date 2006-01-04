@@ -3,49 +3,63 @@
 require 'socket'
 
 class NetworkInterface < Qt::Object
-	signals 'connection(QString*, int)', 'event(QString*)'
+	signals 'event(QString*)'
+	slots 'event(QString*)'
 
-  def initialize(port, &action)
+	def event(s)
+		emit event(s)
+	end
+
+	def initialize()
 		super(nil)
-    @serverSocket = TCPServer.new("", port)
-    @serverSocket.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
-		@descriptors = [@serverSocket]
-		@peers = []
-		@action = action
-  end # initialize
+	end
+
+	def start_server(port)
+		@object = NetworkServer.new( port)
+		connect(@object, SIGNAL('event(QString*)'), SLOT('event(QString*)'))
+	end
+
+	def run
+		@object.run()
+	end
+
+	def start_client(host, port)
+		@object = NetworkClient.new(host, port)
+		connect(@object, SIGNAL('event(QString*)'), SLOT('event(QString*)'))
+	end
+
+	def broadcast_string(str)
+		@object.write(str.tr("\n", '#') + "\n") if @object != nil
+	end 
+end 
+
+class NetworkServer < Qt::Object
+	signals 'event(QString*)'
+
+	def initialize(port)
+		super(nil)
+		@port = port
+		@server = TCPServer.new('localhost', port)
+		@server.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
+		@sessions = []
+	end
 
 	def run()
-		while true
-			res = select( @descriptors, nil, nil )
-			if res != nil then
-				# Iterate through the tagged read descriptors
-				for sock in res[0]
-					# Received a connect to the server (listening) socket
-					if sock == @serverSocket then
-						newsock = @serverSocket.accept
-						@descriptors.push( newsock )
-						str = sprintf("Client joined %s:%s %s\n",
-													newsock.peeraddr[2], newsock.peeraddr[1], newsock.class.to_s)
-						#broadcast_string( str, newsock )
-						emit connection(newsock.peeraddr[2], newsock.peeraddr[1])
-					else
-						# Received something on a client socket
-						if sock.eof? then
-							sock.close
-							@descriptors.delete(sock)
-							emit event('disconnection')
+		@thr = Thread.start do
+			while true
+				s = select([@server] + @sessions, nil, nil)
+				if s != nil
+					s[0].each do |sock|
+						if sock == @server
+							@sessions << sock.accept()
+							@sessions.each { |s| s.print "#{@sessions.length} sessions" }
+						elsif sock.eof()
+							@sessions.delete(sock)
+							@sessions.each { |s| s.print "#{@sessions.length} sessions" }
 						else
-							# we translate the newline characters as the YAML string
-							# is multiple lines but when we receive we only get one line at a time
-							received = sock.gets().tr('#', "\n")
-							puts "received #{received}"
-							m = received.match(/hello:([^:]*):(\d*)/)
-							if m != nil
-								puts "received hello"
-								@peers << TCPSocket.open(m[1], m[2].to_s)
-							else
-								emit event(received)
-							end
+							str = sock.gets().tr('#', "\n")
+							emit event(str)
+							@sessions.each { |s| s.print str if s != sock }
 						end
 					end
 				end
@@ -53,26 +67,37 @@ class NetworkInterface < Qt::Object
 		end
 	end
 
-	def broadcast_string(str, omit_sock)
-		# we translate the newline characters as the YAML string
-		# is multiple lines but when we receive we only get one line at a time
-		str2 = str.tr("\n", '#')
-		@peers.each do |clisock|
-			if clisock != @serverSocket and clisock != omit_sock 
-				puts "writing #{str2} to #{clisock.peeraddr[1]}"
-				
-				# why do i have to this instead of the next line???
-				# (if you use the existing clisock object the message is not sent until you disconnect)
-				TCPSocket.open(clisock.peeraddr[2], clisock.peeraddr[1]).send(str2, 0)
-				#clisock.send(str2, 0)
+	def join() @thr.join() end
+
+	def write(s)
+		@sessions.each { |ses| 
+			puts "sending message from server"
+			ses.print s 
+			
+		}
+	end
+end
+
+class NetworkClient < Qt::Object
+	signals 'event(QString*)'
+
+	def initialize(host, port)
+		super(nil)
+		@sock = TCPSocket.new(host, port)
+	end
+
+	def run()
+		Thread.new do
+			while true
+				str = @sock.gets().tr('#', "\n") #recv(100)
+				puts "received at client: #{str}" if str != nil
+				emit event(str) if str != nil
 			end
 		end
-	end 
-
-	def add_peer(location, port)
-		sock = TCPSocket.open(location, port)
-		@peers << sock
-		#sock.send("hello:#{location}:#{port}", 0)
 	end
-end #server
+
+	def write(s)
+		@sock.write(s)
+	end
+end
 

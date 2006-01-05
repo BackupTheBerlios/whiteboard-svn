@@ -12,6 +12,7 @@ class NetworkInterface < Qt::Object
 
 	def initialize()
 		super(nil)
+		@object = nil
 	end
 
 	def start_server(port)
@@ -19,14 +20,16 @@ class NetworkInterface < Qt::Object
 		connect(@object, SIGNAL('event(QString*)'), SLOT('event(QString*)'))
 	end
 
-	def run
-		@object.run()
-	end
-
 	def start_client(host, port)
 		@object = NetworkClient.new(host, port)
 		connect(@object, SIGNAL('event(QString*)'), SLOT('event(QString*)'))
 	end
+	
+	def run()
+		@object.run()
+	end
+
+	def started?() @object != nil end
 
 	def broadcast_string(str)
 		@object.write(str.tr("\n", '#') + "\n") if @object != nil

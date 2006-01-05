@@ -6,7 +6,6 @@ class Qt::CanvasSprite
 end
 
 class WhiteboardMathObject < WhiteboardObject
-####HACK this is awfully written!!!!
 	attr_reader :text
 
   def initialize(mainWidget)

@@ -3,44 +3,81 @@ require 'object'
 class Qt::CanvasLine
 	attr_reader :associated_object
 	attr_writer :associated_object
+end
 
-	def set_size(dx, dy)
-		setPoints(startPoint.x, startPoint.y, startPoint.x + dx, startPoint.y + dy)
+class WhiteboardLine < WhiteboardRectangle
+	# Although it's a bit inefficient, we derive
+	# line from rectangle because the apis for the Qt
+	# rectangle class are much more convenient to use
+	# than the ones for the line class.  So we just
+	# have a hidden rectangle and sync the line to its
+	# corners.
+
+	def initialize(mainWidget)
+		super(mainWidget)
+		@line = Qt::CanvasLine.new(@canvas)
+		@line.associated_object = self
+		@canvas_items = [@line]
+	end
+
+	def sync_to_rect()
+		@line.set_points(@rect.x, @rect.y, @rect.x + @rect.width, @rect.y + @rect.height)
+	end
+
+	def mousePress(e)
+		super(e)
+		@rect.hide()
+		@line.show()
+		sync_to_rect()
+	end
+
+	def mouseMove(e)
+		super(e)
+		sync_to_rect()
+	end
+
+	def move(x, y)
+		super(x, y)
+		sync_to_rect()
+	end
+
+	def move_by(x, y)
+		super(x, y)
+		sync_to_rect()
+	end
+
+	def set_size(x, y)
+		super(x, y)
+		sync_to_rect()
+	end
+	
+	def to_yaml_object()
+		LineYamlObject.new(@whiteboard_object_id, @rect.x, @rect.y, @rect.width, @rect.height)
+	end
+
+	def from_yaml_object(y)
+		@whiteboard_object_id = y.whiteboard_object_id
+		@rect.move(y.x, y.y)
+		@rect.set_size(y.width, y.height)
+		@rect.hide()
+		@line.show()
+		sync_to_rect()
+		self
 	end
 end
 
-class WhiteboardLine < WhiteboardObject
-  def initialize(mainWidget)
-    super(mainWidget)
-  end
+class LineYamlObject
+	attr_reader :whiteboard_object_id, :x, :y, :width, :height
 
-  def mousePress(e)
-    @point1 = Qt::Point.new(e.x, e.y)
-		
-		@line = Qt::CanvasLine.new(@canvas)
-		@line.set_points(e.pos.x, e.pos.y, e.pos.x + 1, e.pos.y + 1)
-		@line.show()
-		@line.associated_object = self
-		@canvas_items = [@line]
-
-		@canvas.update()
-  end
-
-  def mouseMove(e)
-		@line.set_points(@point1.x, @point1.y, e.pos.x, e.pos.y)
-    @canvas.update()
-  end
-
-  def mouseRelease(e)
-    @mainWidget.create_object(self)
-  end
+	def initialize(whiteboard_object_id, x, y, width, height)
+		@whiteboard_object_id, @x, @y, @width, @height = whiteboard_object_id, x, y, width, height
+	end
 	
-	def set_points(*args) @line.set_points(*args) end
+	def to_yaml_properties()
+		%w{ @whiteboard_object_id @x @y @width @height }
+	end
 
-	def move(x, y) @line.move(x, y) end
-	def move_by(x, y) @line.move_by(x, y) end
-	def set_size(x, y) @line.set_size(x, y) end
-	def width() (@line.endPoint.x - @line.startPoint.x).abs end
-	def height() (@line.endPoint.y - @line.startPoint.y).abs end
-	def bounding_rect() @line.bounding_rect end
+	def to_actual_object(main_widget)
+		WhiteboardLine.new(main_widget).from_yaml_object(self)
+	end
 end

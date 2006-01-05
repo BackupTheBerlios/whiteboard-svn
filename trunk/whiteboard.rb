@@ -295,7 +295,7 @@ class WhiteboardMainWidget < Qt::Widget
   def create_object(item, broadcast = true)	
     @state.create_object(item)
     @canvas.update()
-		if broadcast and @network_interface != nil then
+		if broadcast and @network_interface != nil and @network_interface.started? then
 			@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}")
 		end
   end

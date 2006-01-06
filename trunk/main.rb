@@ -3,7 +3,8 @@
 require 'whiteboard'
 require 'Qt'
 
-$port = ARGV[0] || 2626
+$user_id = ARGV[0] || 'magee'
+$port = ARGV[1] || 2626
 $host = "#{$port}"
 
 a = Qt::Application.new(ARGV)

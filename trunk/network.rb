@@ -32,6 +32,7 @@ class NetworkInterface < Qt::Object
 	def started?() @object != nil end
 
 	def broadcast_string(str)
+		puts "broadcasting message #{str}"
 		@object.write(str.tr("\n", '#') + "\n") if @object != nil
 	end 
 end 
@@ -54,13 +55,16 @@ class NetworkServer < Qt::Object
 				if s != nil
 					s[0].each do |sock|
 						if sock == @server
-							@sessions << sock.accept()
+							new_sock = sock.accept()
+							puts "connection from #{new_sock.peeraddr[2]}"
+							@sessions << new_sock #sock.accept()
 							@sessions.each { |s| s.print "#{@sessions.length} sessions" }
 						elsif sock.eof()
 							@sessions.delete(sock)
 							@sessions.each { |s| s.print "#{@sessions.length} sessions" }
 						else
 							str = sock.gets().tr('#', "\n")
+							puts "received message #{str}"
 							emit event(str)
 							@sessions.each { |s| s.print str if s != sock }
 						end

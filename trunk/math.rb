@@ -8,15 +8,14 @@ end
 class WhiteboardMathObject < WhiteboardObject
 	attr_reader :text
 
-  def initialize(mainWidget)
-    super(mainWidget)
-		@canvasObject = nil
+  def initialize(main_widget)
+    super(main_widget)
 		@sprite = nil
   end
 
   def mousePress(e)
-    @point = Qt::Point.new(e.pos.x - @mainWidget.canvasView.x, e.pos.y - @mainWidget.canvasView.y)
-    @mainWidget.show_text_panel()
+		@point = Qt::Point.new(e.x, e.y)
+    @main_widget.show_text_panel()
   end	
 
 	private
@@ -41,14 +40,14 @@ class WhiteboardMathObject < WhiteboardObject
 
 	public
   def update_text(text)
-    @mainWidget.hide_text_panel()
+    @main_widget.hide_text_panel()
 		if @sprite != nil
 			@sprite.hide()
 			@sprite = nil
 			set_text(text)
 		else
 			set_text(text)
-			@mainWidget.create_object(self)
+			@main_widget.create_object(self)
 		end
 
 		@canvas.update()
@@ -65,7 +64,7 @@ class WhiteboardMathObject < WhiteboardObject
 	end
 
   def select_object()
-    @mainWidget.show_text_panel(@text)
+    @main_widget.show_text_panel(@text)
   end
 
 	def x() @sprite.x end
@@ -76,6 +75,7 @@ class WhiteboardMathObject < WhiteboardObject
 	def width() @sprite.width end
 	def height() @sprite.height end
 	def bounding_rect() @sprite.bounding_rect end
+	def hide() @sprite.hide() end
 end
 
 class MathYamlObject

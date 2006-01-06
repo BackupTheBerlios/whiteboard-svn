@@ -4,13 +4,14 @@ class WhiteboardObject
 
 	def set_main_widget(main_widget)
     @canvas = main_widget.canvas
-    @mainWidget = main_widget
+		@canvas_view = main_widget.canvas_view
+    @main_widget = main_widget
 		@network_interface = main_widget.network_interface
 	end
 
   def initialize(main_widget)
 		set_main_widget(main_widget)
-		@whiteboard_object_id = "#{$host}:#{@@num_objects}"
+		@whiteboard_object_id = "#{$user_id}:#{@@num_objects}"
 		puts "object id is #{@whiteboard_object_id}"
 		@@num_objects += 1
   end
@@ -20,6 +21,10 @@ class WhiteboardObject
   def mouseRelease(e) end
   def create(p) end
   def select_object() end
+
+	def to_s()
+		YAML.dump(to_yaml_object()).to_s
+	end
 end
 
 class WhiteboardCompositeObject

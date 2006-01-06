@@ -9,8 +9,8 @@ end
 class WhiteboardRectangle < WhiteboardObject
 	attr_reader :rect
 
-  def initialize(mainWidget)
-    super(mainWidget)
+  def initialize(main_widget)
+    super(main_widget)
 		@rect = Qt::CanvasRectangle.new(0, 0, 0, 0, @canvas)
 		@rect.associated_object = self
 		@canvas_items = [@rect]
@@ -33,7 +33,7 @@ class WhiteboardRectangle < WhiteboardObject
   end
 
   def mouseRelease(e)
-    @mainWidget.create_object(self)
+    @main_widget.create_object(self)
   end
 
 	def to_yaml_object()
@@ -55,6 +55,7 @@ class WhiteboardRectangle < WhiteboardObject
 	def set_size(x, y) @rect.setSize(x, y) end
 	def width() @rect.width end
 	def height() @rect.height end
+	def hide() @rect.hide() end
 	# todo work out between rect/bounding_rect
 	def bounding_rect() @rect.rect end
 end

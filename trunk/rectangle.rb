@@ -1,6 +1,12 @@
 $VERBOSE = true; $:.unshift File.dirname($0)
 require 'object'
 
+class Qt::Rect
+	def to_s
+		"(#{x}, #{y}), (#{x + width}, #{y + height})"
+	end
+end
+
 class Qt::CanvasRectangle
 	attr_reader :associated_object
 	attr_writer :associated_object
@@ -46,6 +52,12 @@ class WhiteboardRectangle < WhiteboardObject
 		@rect.set_size(y.width, y.height)
 		@rect.show()
 		self
+	end
+
+	def update() # temp
+		@rect.set_pen(Qt::Pen.new(@line_colour, @line_width))
+		@rect.set_brush(Qt::Brush.new(@fill_colour))
+		@canvas.update()
 	end
 
 	def x() @rect.x end

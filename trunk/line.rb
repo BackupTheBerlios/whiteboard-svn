@@ -108,6 +108,8 @@ class WhiteboardLine < WhiteboardObject
 	def bounding_rect() #@line.bounding_rect end
 		Qt::Rect.new(@line.start_point, @line.end_point)
 	end
+	def start_point() @line.start_point end
+	def end_point() @line.end_point end
 end
 
 class LineYamlObject

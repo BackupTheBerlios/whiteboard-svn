@@ -11,15 +11,11 @@ require 'rectangle'
 require 'math'
 require 'line'
 require 'network'
-require 'drb'
+require 'object_popupmenu'
 require 'yaml'
 
-class Qt::Rect
-	def to_s
-		"(#{x}, #{y}), (#{x + width}, #{y + height})"
-	end
-end
-	
+# Takes an array of rectangles and returns the smallest rectangle
+# that encloses them all.
 def total_bounding_rect(rects)
 	left, right, top, bottom = rects[0].left, rects[0].right, rects[0].top, rects[0].bottom
 	(1...rects.length).each do |i|
@@ -35,7 +31,8 @@ end
 class WhiteboardMainWindow < WhiteboardMainWindowUI
   slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
 		'timeout()', 'networkEvent(QString*)', 
-		'connection(QString*, int)', 'network_connect()', 'start_server()', 'file_save()', 'file_open()'
+		'connection(QString*, int)', 'network_connect()', 'start_server()', 'file_save()', 'file_open()',
+		'networkMessage(QString*)'
 	
 	def timeout() end
 
@@ -49,6 +46,19 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		m = s.match(Regexp.new('move:([^:]*):([^:]*):([^:]*):([^:]*)'))
 		if m != nil
 			@widget.move_object("#{m[1]}:#{m[2]}", m[3].to_i, m[4].to_i)
+		end
+	end
+
+	def networkMessage(s)
+		msg = NetworkMessage.from_line(s)
+		if msg.is_a?(CreateObjectMessage)
+			@widget.create_object(msg.object.to_actual_object(@widget), false)
+		elsif msg.is_a?(MoveObjectMessage)
+			@widget.move_object(msg.object_id, msg.x, msg.y)
+		elsif msg.is_a?(ResizeObjectMessage)
+			@widget.resize_object_by_id(msg.object_id, msg.mx, msg.my, msg.dx, msg.dy)
+		elsif msg.is_a?(DeleteObjectMessage)
+			@widget.delete_object_by_id(msg.object_id)
 		end
 	end
 
@@ -135,10 +145,13 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 
 		@network_interface = NetworkInterface.new()
 		set_caption("Whiteboard: #{$port}")
-		connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
+		#connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
+		connect(@network_interface, SIGNAL('message(QString*)'), SLOT('networkMessage(QString*)'))
 		#connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
 
 		@widget.network_interface = @network_interface
+
+		setMinimumSize(800, 400)
   end
 end
 
@@ -150,6 +163,12 @@ class ControlPoint < Qt::CanvasRectangle
     super(boundingRect, canvas)
     @parent = parent
   end
+
+	def set_multipliers(mx, my)
+		@mx, @my = mx, my
+	end
+
+	def multipliers() [@mx, @my] end
 end
 
 class WhiteboardView < Qt::CanvasView
@@ -168,10 +187,6 @@ class WhiteboardView < Qt::CanvasView
     super
     emit mouseRelease(e)
   end
-
-	def keyPressEvent(e)
-		puts "key press event"
-	end
 end
 
 class WhiteboardState
@@ -264,8 +279,8 @@ class WhiteboardMainWidget < Qt::Widget
     connect(@canvas_view, SIGNAL('mouseMove(QMouseEvent*)'), SLOT('mouseMove(QMouseEvent*)'))
     connect(@canvas_view, SIGNAL('mouseRelease(QMouseEvent*)'), SLOT('mouseRelease(QMouseEvent*)'))
 
-    @text_box.hide
-    @update_button.hide
+    @text_box.hide()
+    @update_button.hide()
     
     @@mouseStates = Enum.new(:Down, :Up)
     @mouse_button_state = @@mouseStates::Up
@@ -292,7 +307,88 @@ class WhiteboardMainWidget < Qt::Widget
 		set_focus()
   end
 
+	############
+	# State Modification Functions
+	############
+  
+	def create_object(object, broadcast = true)	
+    @state.create_object(object)
+    @canvas.update()
+		if broadcast and @network_interface != nil and @network_interface.started? then
+			@network_interface.broadcast_message(CreateObjectMessage.new(object.to_yaml_object()))
+		end
+  end
+
+	def move_object(whiteboard_object_id, x, y)
+		@state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }.move(x, y)
+		@canvas.update()
+	end
+
+	def delete_object_by_id(whiteboard_object_id)
+		@state.objects.each { |i| 
+			if i.whiteboard_object_id == whiteboard_object_id
+				i.hide() 
+				i = nil
+			end
+		}
+		@state.objects.delete_if { |i| i == nil }
+		#@state.objects.delete_if do |i| 
+#			if i.whiteboard_object_id == whiteboard_object_id
+#				i.hide()
+#				return true
+#			end
+#			false
+#		end
+		@canvas.update()
+	end
+
+	def resize_object_by_id(whiteboard_object_id, mx, my, dx, dy)
+		ob = @state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }
+		resize_object(ob, mx, my, dx, dy)
+		@canvas.update()
+	end
+
+	def resize_object(object, mx, my, dx, dy)
+		new_width = object.width + mx*dx
+		new_height = object.height + my*dy
+
+		# to avoid strangeness when we resize an object to zero size
+		# we stop the user from moving the control point to a size smaller than ObjectMinimumSize
+		# todo: make this better
+		if new_width < ObjectMinimumSize or new_height < ObjectMinimumSize 
+			return false
+		end
+		object.set_size(new_width, new_height)
+		object.move_by(mx == -1 ? dx : 0, my == -1 ? dy : 0) 
+		true
+	end
+
+  def insert_rectangle()
+    @state.prepare_object_creation(WhiteboardRectangle.new(self))
+  end
+  
+  def insert_math()
+    @state.prepare_object_creation(WhiteboardMathObject.new(self))
+  end
+  
+	def insert_line()
+    @state.prepare_object_creation(WhiteboardLine.new(self))
+  end
+	
+	def insert_arrow()
+    @state.prepare_object_creation(WhiteboardLine.new(self, true))
+  end
+
+	############
+	# Events
+	############
+
   def mousePress(e)
+		if (e.button == Qt::RightButton)
+			p = ObjectPopupMenu.new(@state.selected_objects[0], self)
+			p.popup(e.global_pos)
+			return
+		end
     list = @canvas.collisions(e.pos)
 
     if @state.creating? 
@@ -327,21 +423,10 @@ class WhiteboardMainWidget < Qt::Widget
     @canvas.update()
   end
   
-  def create_object(item, broadcast = true)	
-    @state.create_object(item)
-    @canvas.update()
-		if broadcast and @network_interface != nil and @network_interface.started? then
-			#@network_interface.broadcast_string("creating:#{YAML.dump(item.to_yaml_object()).to_s}")
-			@network_interface.broadcast_string("creating:#{item.to_s}")
-		end
-  end
-
-	def move_object(whiteboard_object_id, x, y)
-		@state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }.move(x, y)
-		@canvas.update()
-	end
-
   def mouseMove(e)
+		if (e.button == Qt::RightButton)
+			return
+		end
     if @state.creating?
       @state.controller.mouseMove(e)
     elsif @state.selecting?
@@ -352,45 +437,29 @@ class WhiteboardMainWidget < Qt::Widget
       @selection_rectangle.setSize(size.x, size.y)
       @selection_rectangle.show()
 
-      @canvas.update()
-
       collisions = @canvas.collisions(@selection_rectangle.rect)
       @state.select_objects(@state.canvas_items.select{|r| collisions.index(r) != nil}.map{|i| i.associated_object})
       create_control_points()
-			if @state.selected_objects.length > 0
-				update_control_points()		
-			end
     elsif @state.resizing?
 			dx, dy = e.pos.x - @mouse_pos.x, e.pos.y - @mouse_pos.y
 			@state.selected_control_point.move_by(dx, dy)
-        
-			current_object = @state.total_selection_object
-			cp = @rect_hash[@state.selected_control_point]
-			new_width = current_object.width + cp[0]*dx
-			new_height = current_object.height + cp[1]*dy
-
-			# to avoid strangeness when we resize an object to zero size
-			# we stop the user from moving the control point to a size smaller than ObjectMinimumSize
-			# todo: make this better
-			if new_width < ObjectMinimumSize or new_height < ObjectMinimumSize 
+			cp = @state.selected_control_point.multipliers() 
+			
+			if not resize_object(@state.total_selection_object, cp[0], cp[1], dx, dy)
 				Qt::Cursor.setPos(mapToGlobal(@mouse_pos))
-				return
+				return false
 			end
-			current_object.set_size(new_width, new_height)
-			current_object.move_by(cp[0] == -1 ? dx : 0, cp[1] == -1 ? dy : 0) 
+
+			@network_interface.broadcast_message(ResizeObjectMessage.new(
+				@state.selected_objects[0].whiteboard_object_id, cp[0], cp[1], dx, dy))
 			update_control_points()
 		else
 			@state.selected_objects.each do |i|
 				i.move_by(e.x - @mouse_pos.x, e.y - @mouse_pos.y)
-				@network_interface.broadcast_string("move:#{i.whiteboard_object_id}:#{i.x}:#{i.y}")
+				@network_interface.broadcast_message(MoveObjectMessage.new(i.whiteboard_object_id, i.x, i.y))
 			end
-
-			selected = @state.selected_objects
-
 			update_control_points()
-			if selected.length == 1
-				selected[0].select_object()
-			end
+			@state.selected_objects[0].select_object() if @state.selected_objects.length == 1
 		end
 
     @canvas.update()
@@ -398,6 +467,9 @@ class WhiteboardMainWidget < Qt::Widget
   end
 
   def mouseRelease(e)
+		if (e.button == Qt::RightButton)
+			return
+		end
     @mouse_button_state = @@mouseStates::Up
     if @state.creating?
       @state.controller.mouseRelease(e)
@@ -417,6 +489,7 @@ class WhiteboardMainWidget < Qt::Widget
 			@state.selected_objects.each do |o|
 				o.hide()
 				@state.objects.delete(o)
+				@network_interface.broadcast_message(DeleteObjectMessage.new(o.whiteboard_object_id))
 				o = nil
 			end
 			@state.deselect_all()
@@ -427,16 +500,30 @@ class WhiteboardMainWidget < Qt::Widget
 		end
 	end
 
+  def create_control_points()
+    if @state.selected_objects.length > 0
+      @control_points.each { |c| c.hide() }
+      @control_points = []
+      NumControlPoints.times {
+        rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, WhiteboardCompositeObject.new(@state.selected_objects))
+        rect.z = 1 # control points go on top of object
+        rect.show()
+        @control_points << rect
+      }
+		end
+		
+		update_control_points()
+  end
+
   def update_control_points()
 		if (@state.selected_objects.length > 0)
 			br = total_bounding_rect(@state.selected_objects.map {|i| i.bounding_rect})
-			@rect_hash = {}
 			i = 0
 			for x in [[-1, br.left], [0, (br.right+br.left)/2], [1, br.right]]
 				for y in [[-1, br.top], [0, (br.top+br.bottom)/2], [1, br.bottom]]
 					if x[1] != (br.right+br.left)/2 or y[1] != (br.top+br.bottom)/2
 						@control_points[i].move(x[1] - ControlPointSize/2, y[1] - ControlPointSize/2)
-						@rect_hash[@control_points[i]] = [x[0], y[0]]
+						@control_points[i].set_multipliers(x[0], y[0])
 						i += 1
 					end
 				end
@@ -445,22 +532,6 @@ class WhiteboardMainWidget < Qt::Widget
 			@control_points.each { |c| c.hide() }
 			@control_points = []
 		end
-  end
-
-  def insert_rectangle()
-    @state.prepare_object_creation(WhiteboardRectangle.new(self))
-  end
-  
-  def insert_math()
-    @state.prepare_object_creation(WhiteboardMathObject.new(self))
-  end
-  
-	def insert_line()
-    @state.prepare_object_creation(WhiteboardLine.new(self))
-  end
-	
-	def insert_arrow()
-    @state.prepare_object_creation(WhiteboardLine.new(self, true))
   end
 
 	def left_mouse_press(x, y)
@@ -481,21 +552,6 @@ class WhiteboardMainWidget < Qt::Widget
 		else
 			@state.selected_objects[0].controller.update_text(text)
 		end
-  end
-
-  def create_control_points()
-    if @state.selected_objects.length > 0
-      @control_points.each { |c| c.hide() }
-      @control_points = []
-      NumControlPoints.times {
-        rect = ControlPoint.new(Qt::Rect.new(0, 0, 10, 10), @canvas, WhiteboardCompositeObject.new(@state.selected_objects))
-        rect.z = 1 # control points go on top of object
-        rect.show()
-        @control_points << rect
-      }
-		end
-		
-		update_control_points()
   end
 
   def show_text_panel(text = nil)

@@ -1,20 +1,26 @@
-class WhiteboardObject
-  attr_reader :canvas_items, :controller, :whiteboard_object_id
-	@@num_objects = 0
+require 'object_properties'
 
-	def set_main_widget(main_widget)
-    @canvas = main_widget.canvas
-		@canvas_view = main_widget.canvas_view
-    @main_widget = main_widget
-		@network_interface = main_widget.network_interface
-	end
+class WhiteboardObject
+  attr_reader :canvas_items, :controller, :whiteboard_object_id, :line_colour, :line_width, :fill_colour
+	attr_writer :line_colour, :line_width, :fill_colour
+	@@num_objects = 0
 
   def initialize(main_widget)
 		set_main_widget(main_widget)
 		@whiteboard_object_id = "#{$user_id}:#{@@num_objects}"
-		puts "object id is #{@whiteboard_object_id}"
 		@@num_objects += 1
+
+		@line_colour = Qt::black
+		@line_width = 1
+		@fill_colour = Qt::white
   end
+
+	def set_main_widget(main_widget)
+    @main_widget = main_widget
+    @canvas = main_widget.canvas
+		@canvas_view = main_widget.canvas_view
+		@network_interface = main_widget.network_interface
+	end
 
   def mousePress(e) end
   def mouseMove(e) end
@@ -56,3 +62,42 @@ class WhiteboardCompositeObject
 	def bounding_rect() @rect end
 end
 
+class ObjectPropertiesForm < ObjectPropertiesUI
+	slots 'ok_clicked()', 'cancel_clicked()'
+
+	@@colours = [
+		["Black", Qt::black],
+		["Blue", Qt::blue],
+		["Green", Qt::green],
+		["Red", Qt::red],
+		["Yellow", Qt::yellow]
+	]
+
+	def initialize(object)
+		@object = object
+		super()
+	
+		[@line_colour, @fill_colour].each do |c|
+			@@colours.each do |col|
+				c.insert_item(col[0])
+			end
+		end
+
+		1.upto(10) { |w| @line_width.insert_item(w.to_s) }
+
+		connect(ok_button, SIGNAL('clicked()'), SLOT('ok_clicked()'))
+		connect(cancel_button, SIGNAL('clicked()'), SLOT('cancel_clicked()'))
+	end
+
+	def ok_clicked()
+		@object.fill_colour = @@colours[@fill_colour.current_item][1]
+		@object.line_colour = @@colours[@line_colour.current_item][1]
+		@object.line_width = @line_width.current_item + 1
+		@object.update()
+		close()
+	end
+
+	def cancel_clicked()
+		close()
+	end
+end

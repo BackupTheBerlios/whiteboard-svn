@@ -3,11 +3,11 @@
 require 'socket'
 
 class NetworkInterface < Qt::Object
-	signals 'event(QString*)'
-	slots 'event(QString*)'
+	signals 'message(QString*)'
+	slots 'message(QString*)'
 
-	def event(s)
-		emit event(s)
+	def message(m)
+		emit message(m)
 	end
 
 	def initialize()
@@ -17,12 +17,12 @@ class NetworkInterface < Qt::Object
 
 	def start_server(port)
 		@object = NetworkServer.new( port)
-		connect(@object, SIGNAL('event(QString*)'), SLOT('event(QString*)'))
+		connect(@object, SIGNAL('message(QString*)'), SLOT('message(QString*)'))
 	end
 
 	def start_client(host, port)
 		@object = NetworkClient.new(host, port)
-		connect(@object, SIGNAL('event(QString*)'), SLOT('event(QString*)'))
+		connect(@object, SIGNAL('message(QString*)'), SLOT('message(QString*)'))
 	end
 	
 	def run()
@@ -31,14 +31,13 @@ class NetworkInterface < Qt::Object
 
 	def started?() @object != nil end
 
-	def broadcast_string(str)
-		puts "broadcasting message #{str}"
-		@object.write(str.tr("\n", '#') + "\n") if @object != nil
-	end 
+	def broadcast_message(msg)
+		@object.write(msg.to_line)
+	end
 end 
 
 class NetworkServer < Qt::Object
-	signals 'event(QString*)'
+	signals 'message(QString*)'
 
 	def initialize(port)
 		super(nil)
@@ -56,17 +55,13 @@ class NetworkServer < Qt::Object
 					s[0].each do |sock|
 						if sock == @server
 							new_sock = sock.accept()
-							puts "connection from #{new_sock.peeraddr[2]}"
 							@sessions << new_sock #sock.accept()
-							@sessions.each { |s| s.print "#{@sessions.length} sessions" }
 						elsif sock.eof()
 							@sessions.delete(sock)
-							@sessions.each { |s| s.print "#{@sessions.length} sessions" }
 						else
-							str = sock.gets().tr('#', "\n")
-							puts "received message #{str}"
-							emit event(str)
-							@sessions.each { |s| s.print str if s != sock }
+							line = sock.gets()
+							emit message(line)
+							@sessions.each { |s| s.print line if s != sock }
 						end
 					end
 				end
@@ -77,16 +72,12 @@ class NetworkServer < Qt::Object
 	def join() @thr.join() end
 
 	def write(s)
-		@sessions.each { |ses| 
-			puts "sending message from server"
-			ses.print s 
-			
-		}
+		@sessions.each { |ses| ses.print s }
 	end
 end
 
 class NetworkClient < Qt::Object
-	signals 'event(QString*)'
+	signals 'message(QString*)'
 
 	def initialize(host, port)
 		super(nil)
@@ -96,9 +87,8 @@ class NetworkClient < Qt::Object
 	def run()
 		Thread.new do
 			while true
-				str = @sock.gets().tr('#', "\n") #recv(100)
-				puts "received at client: #{str}" if str != nil
-				emit event(str) if str != nil
+				str = @sock.gets()
+				emit message(str) if str != nil
 			end
 		end
 	end
@@ -108,3 +98,52 @@ class NetworkClient < Qt::Object
 	end
 end
 
+class NetworkMessage
+	def to_line()
+		YAML.dump(self).tr("\n", '#') + "\n"
+	end
+
+	def NetworkMessage.from_line(s)
+		YAML.load(s.tr('#', "\n").chomp())
+	end
+end
+
+class CreateObjectMessage < NetworkMessage
+	attr_reader :object
+
+	def initialize(object)
+		@object = object
+	end
+	
+	def to_yaml_properties() %w{ @object } end
+end
+
+class MoveObjectMessage < NetworkMessage
+	attr_reader :object_id, :x, :y
+
+	def initialize(object_id, x, y)
+		@object_id, @x, @y = object_id, x, y
+	end
+
+	def to_yaml_properties() %w{ @object_id @x @y } end
+end
+
+class ResizeObjectMessage < NetworkMessage
+	attr_reader :object_id, :mx, :my, :dx, :dy
+
+	def initialize(object_id, mx, my, dx, dy)
+		@object_id, @mx, @my, @dx, @dy = object_id, mx, my, dx, dy
+	end
+
+	def to_yaml_properties() %w{ @object_id @mx @my @dx @dy } end
+end
+
+class DeleteObjectMessage < NetworkMessage
+	attr_reader :object_id
+
+	def initialize(object_id)
+		@object_id = object_id
+	end
+
+	def to_yaml_properties() %w{ @object_id } end
+end

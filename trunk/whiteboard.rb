@@ -297,7 +297,7 @@ class WhiteboardMainWidget < Qt::Widget
     # to allow the object to be resized
     @control_points = []
 
-		@network_interface = nil
+		@network_interface = NetworkInterface.new()
 		
     show()
 
@@ -332,13 +332,6 @@ class WhiteboardMainWidget < Qt::Widget
 			end
 		}
 		@state.objects.delete_if { |i| i == nil }
-		#@state.objects.delete_if do |i| 
-#			if i.whiteboard_object_id == whiteboard_object_id
-#				i.hide()
-#				return true
-#			end
-#			false
-#		end
 		@canvas.update()
 	end
 
@@ -442,14 +435,14 @@ class WhiteboardMainWidget < Qt::Widget
       create_control_points()
     elsif @state.resizing?
 			dx, dy = e.pos.x - @mouse_pos.x, e.pos.y - @mouse_pos.y
-			@state.selected_control_point.move_by(dx, dy)
 			cp = @state.selected_control_point.multipliers() 
-			
+
 			if not resize_object(@state.total_selection_object, cp[0], cp[1], dx, dy)
 				Qt::Cursor.setPos(mapToGlobal(@mouse_pos))
 				return false
 			end
-
+			
+			@state.selected_control_point.move_by(dx, dy)
 			@network_interface.broadcast_message(ResizeObjectMessage.new(
 				@state.selected_objects[0].whiteboard_object_id, cp[0], cp[1], dx, dy))
 			update_control_points()

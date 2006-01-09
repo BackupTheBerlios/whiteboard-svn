@@ -6,13 +6,6 @@ class Qt::CanvasLine
 end
 
 class WhiteboardLine < WhiteboardObject
-	# Although it's a bit inefficient, we derive
-	# line from rectangle because the apis for the Qt
-	# rectangle class are much more convenient to use
-	# than the ones for the line class.  So we just
-	# have a hidden rectangle and sync the line to its
-	# corners.
-
 	def initialize(mainWidget, is_arrow = false)
 		super(mainWidget)
 		@line = Qt::CanvasLine.new(@canvas)
@@ -61,6 +54,7 @@ class WhiteboardLine < WhiteboardObject
 				@arrow2 = Qt::CanvasLine.new(@canvas)
 				@arrow1.show()
 				@arrow2.show()
+				@canvas_items = [@line, @arrow1, @arrow2]
 			end
 
 			m = Qt::WMatrix.new()
@@ -80,36 +74,39 @@ class WhiteboardLine < WhiteboardObject
 	def x() [@line.start_point.x, @line.end_point.x].min end
 	def y() [@line.start_point.y, @line.end_point.y].min end
 	
-	def move(x, y) 
-		if @line.start_point.x < @line.end_point.x
-			@line.set_points(x, y, x + width(), y + height)
-		else
-			@line.set_points(x + width(), y + height(), x, y)
-		end
+	def move_by(dx, dy) 
+		@line.set_points(@line.start_point.x + dx, @line.start_point.y + dy,
+			@line.end_point.x + dx, @line.end_point.y + dy)
 		update_arrow()
 	end
-
-	def move_by(dx, dy) 
-		move(x() + dx, y() + dy)
+	
+	def move(x, y) 
+		move_by(x - x(), y - y())
 	end
 	
 	def set_size(x, y) 
-		if @line.start_point.x < @line.end_point.x
-			@line.set_points(@line.start_point.x, @line.start_point.y, 
-				@line.start_point.x + x, @line.start_point.y + y)
+		x1, y1, x2, y2 = @line.start_point.x, @line.start_point.y, @line.end_point.x, @line.end_point.y
+		if x1 > x2
+			x1 = x() + x
 		else
-			@line.set_points(@line.start_point.x + x, @line.start_point.y + y,
-				@line.start_point.x, @line.start_point.y)
+			x2 = x() + x
 		end
+		if y1 > y2
+			y1 = y() + y
+		else
+			y2 = y() + y
+		end
+
+		@line.set_points(x1, y1, x2, y2)
 	end
+
 	def width() (@line.end_point.x - @line.start_point.x).abs end
 	def height() (@line.end_point.y - @line.start_point.y).abs end
-	def hide() @line.hide() end
-	def bounding_rect() #@line.bounding_rect end
-		Qt::Rect.new(@line.start_point, @line.end_point)
-	end
+	def bounding_rect() Qt::Rect.new(x(), y(), width(), height()) end
 	def start_point() @line.start_point end
 	def end_point() @line.end_point end
+
+	def set_points(x1, y1, x2, y2) @line.set_points(x1, y1, x2, y2) end
 end
 
 class LineYamlObject

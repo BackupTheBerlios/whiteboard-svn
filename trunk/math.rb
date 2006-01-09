@@ -75,7 +75,6 @@ class WhiteboardMathObject < WhiteboardObject
 	def width() @sprite.width end
 	def height() @sprite.height end
 	def bounding_rect() @sprite.bounding_rect end
-	def hide() @sprite.hide() end
 end
 
 class MathYamlObject

@@ -32,7 +32,7 @@ class NetworkInterface < Qt::Object
 	def started?() @object != nil end
 
 	def broadcast_message(msg)
-		@object.write(msg.to_line)
+		@object.write(msg.to_line) if @object != nil
 	end
 end 
 

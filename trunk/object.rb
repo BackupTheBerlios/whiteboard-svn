@@ -17,9 +17,11 @@ class WhiteboardObject
 
 	def set_main_widget(main_widget)
     @main_widget = main_widget
-    @canvas = main_widget.canvas
-		@canvas_view = main_widget.canvas_view
-		@network_interface = main_widget.network_interface
+		if main_widget != nil
+			@canvas = main_widget.canvas
+			@canvas_view = main_widget.canvas_view
+			@network_interface = main_widget.network_interface
+		end
 	end
 
   def mousePress(e) end
@@ -27,10 +29,13 @@ class WhiteboardObject
   def mouseRelease(e) end
   def create(p) end
   def select_object() end
+	def hide() @canvas_items.each { |i| i.hide() } end
 
 	def to_s()
 		YAML.dump(to_yaml_object()).to_s
 	end
+
+	def update() end
 end
 
 class WhiteboardCompositeObject
@@ -62,36 +67,56 @@ class WhiteboardCompositeObject
 	def bounding_rect() @rect end
 end
 
-class ObjectPropertiesForm < ObjectPropertiesUI
-	slots 'ok_clicked()', 'cancel_clicked()'
+class ColourButton < Qt::PushButton
+	attr_reader :colour
 
-	@@colours = [
-		["Black", Qt::black],
-		["Blue", Qt::blue],
-		["Green", Qt::green],
-		["Red", Qt::red],
-		["Yellow", Qt::yellow]
-	]
+	slots 'clicked()'
+
+	def initialize(parent, name, colour = nil)
+		super(parent, name)
+		@colour = colour
+		set_palette_background_color(@colour) if colour != nil
+		connect(self, SIGNAL('clicked()'), SLOT('clicked()'))
+	end
+
+	def clicked()
+		@colour = Qt::ColorDialog.get_color()
+		set_palette_background_color(colour)
+	end
+
+	def colour=(colour)
+		@colour = colour
+		set_palette_background_color(colour)
+	end
+end
+
+class Qt::Color
+	def dup()
+		Qt::Color.new(red, green, blue)
+	end
+end
+
+class ObjectPropertiesForm < ObjectPropertiesUI
+	slots 'ok_clicked()', 'cancel_clicked()', 'line_colour_clicked()', 'fill_colour_clicked()'
+
+	@@colours = []
 
 	def initialize(object)
 		@object = object
 		super()
 	
-		[@line_colour, @fill_colour].each do |c|
-			@@colours.each do |col|
-				c.insert_item(col[0])
-			end
-		end
-
 		1.upto(10) { |w| @line_width.insert_item(w.to_s) }
+
+		@fill_colour.colour = @object.fill_colour
+		@line_colour.colour = @object.line_colour
 
 		connect(ok_button, SIGNAL('clicked()'), SLOT('ok_clicked()'))
 		connect(cancel_button, SIGNAL('clicked()'), SLOT('cancel_clicked()'))
 	end
 
 	def ok_clicked()
-		@object.fill_colour = @@colours[@fill_colour.current_item][1]
-		@object.line_colour = @@colours[@line_colour.current_item][1]
+		@object.fill_colour = @fill_colour.colour.dup()
+		@object.line_colour = @line_colour.colour.dup()
 		@object.line_width = @line_width.current_item + 1
 		@object.update()
 		close()
@@ -101,3 +126,4 @@ class ObjectPropertiesForm < ObjectPropertiesUI
 		close()
 	end
 end
+

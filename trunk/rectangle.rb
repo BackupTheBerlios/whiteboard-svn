@@ -64,11 +64,9 @@ class WhiteboardRectangle < WhiteboardObject
 	def y() @rect.y end
 	def move(x, y) @rect.move(x, y) end
 	def move_by(x, y) @rect.move_by(x, y) end
-	def set_size(x, y) @rect.setSize(x, y) end
+	def set_size(x, y) @rect.set_size(x, y) end
 	def width() @rect.width end
 	def height() @rect.height end
-	def hide() @rect.hide() end
-	# todo work out between rect/bounding_rect
 	def bounding_rect() @rect.rect end
 end
 

@@ -177,7 +177,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 	def insert_arrow()
 		set_activated(@insertArrowAction)	
 		#@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
-		@widget.prepare_object_creation(WhiteboardFreeForm.new(@widget))
+		@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
 	end
 
 	def insert_image()

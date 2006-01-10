@@ -99,7 +99,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 			#@widget.state.objects = []
 			File.open(name, "r") do |f|
 				f.each_line do |line|
-					r = YAML.load(line.tr('#', "\n")).to_actual_object(@widget) 
+					r = YAML.load(line.tr('#', "\n")).from_yaml_object(@widget) 
 					@widget.create_object(r, false)
 				end
 			end
@@ -150,7 +150,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
   end
 
 	def set_activated(it)
-		@item_actions.each { |i| i.set_on(i == it) }
+		#@item_actions.each { |i| i.set_on(i == it) }
 	end
 
 	def no_item_creating() set_activated(nil) end
@@ -413,13 +413,16 @@ class WhiteboardMainWidget < Qt::Widget
 	############
 
   def mousePress(e)
-		if (e.button == Qt::RightButton)
-			p = ObjectPopupMenu.new(@state.selected_objects[0], self)
-			connect(p, SIGNAL('properties_changed(QString*)'), SLOT('properties_changed(QString*)'))
-			p.popup(e.global_pos)
+		if e.button == Qt::RightButton
+			if @state.selected_objects.length == 1
+				p = ObjectPopupMenu.new(@state.selected_objects[0], self)
+				connect(p, SIGNAL('properties_changed(QString*)'), SLOT('properties_changed(QString*)'))
+				p.popup(e.global_pos)
+			end
 			return
 		end
-    list = @canvas.collisions(e.pos)
+    
+		list = @canvas.collisions(e.pos)
 
     if @state.creating? 
       @state.controller.mousePress(e)

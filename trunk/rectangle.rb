@@ -31,7 +31,7 @@ class WhiteboardRectangle < WhiteboardObject
 		@rect.move(e.x, e.y)
 		@rect.set_size(1, 1)
 		@rect.show()
-		update() #hack
+		update_properties() #hack?
 	end
 
   def mouseMove(e)
@@ -63,12 +63,12 @@ class WhiteboardRectangle < WhiteboardObject
 		setup()
 		@rect.move(@x, @y)
 		@rect.set_size(@width, @height)
-		update() #hack
+		update_properties()
 		@rect.show()
 		self
 	end
 
-	def update() # temp
+	def update_properties()
 		@rect.set_pen(Qt::Pen.new(@line_colour, @line_width))
 		@rect.set_brush(Qt::Brush.new(@fill_colour))
 		@canvas.update()

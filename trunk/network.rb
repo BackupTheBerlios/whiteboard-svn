@@ -6,23 +6,25 @@ class NetworkInterface < Qt::Object
 	signals 'message(QString*)'
 	slots 'message(QString*)'
 
-	def message(m)
-		emit message(m)
-	end
-
 	def initialize()
 		super(nil)
 		@object = nil
+	end
+	
+	def message(m)
+		emit message(m)
 	end
 
 	def start_server(port)
 		@object = NetworkServer.new( port)
 		connect(@object, SIGNAL('message(QString*)'), SLOT('message(QString*)'))
+		@object.run()
 	end
 
 	def start_client(host, port)
 		@object = NetworkClient.new(host, port)
 		connect(@object, SIGNAL('message(QString*)'), SLOT('message(QString*)'))
+		@object.run()
 	end
 	
 	def run()
@@ -33,6 +35,10 @@ class NetworkInterface < Qt::Object
 
 	def broadcast_message(msg)
 		@object.write(msg.to_line) if @object != nil
+	end
+
+	def broadcast_string(str)
+		@object.write(str) if @object != nil
 	end
 end 
 
@@ -45,9 +51,12 @@ class NetworkServer < Qt::Object
 		@server = TCPServer.new('', port)
 		@server.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
 		@sessions = []
+		@is_running = false
 	end
 
 	def run()
+		return if @is_running 
+		@is_running = true
 		@thr = Thread.start do
 			while true
 				s = select([@server] + @sessions, nil, nil)
@@ -55,7 +64,7 @@ class NetworkServer < Qt::Object
 					s[0].each do |sock|
 						if sock == @server
 							new_sock = sock.accept()
-							@sessions << new_sock #sock.accept()
+							@sessions << new_sock 
 						elsif sock.eof()
 							@sessions.delete(sock)
 						else
@@ -82,9 +91,12 @@ class NetworkClient < Qt::Object
 	def initialize(host, port)
 		super(nil)
 		@sock = TCPSocket.new(host, port)
+		@is_running = false
 	end
 
 	def run()
+		return if @is_running 
+		@is_running = true
 		Thread.new do
 			while true
 				str = @sock.gets()
@@ -146,4 +158,14 @@ class DeleteObjectMessage < NetworkMessage
 	end
 
 	def to_yaml_properties() %w{ @object_id } end
+end
+
+class ChangeObjectMessage < NetworkMessage
+	attr_reader :object_id, :object
+
+	def initialize(object_id, object)
+		@object_id, @object = object_id, object
+	end
+
+	def to_yaml_properties() %w{ @object_id @object } end
 end

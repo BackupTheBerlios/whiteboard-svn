@@ -54,6 +54,7 @@
         <action name="insertMathAction"/>
         <action name="insertLineAction"/>
         <action name="insertArrowAction"/>
+        <action name="insertImageAction"/>
     </item>
     <item text="&amp;Help" name="helpMenu">
         <action name="helpContentsAction"/>
@@ -126,6 +127,7 @@
         <action name="insertMathAction"/>
         <action name="insertLineAction"/>
         <action name="insertArrowAction"/>
+        <action name="insertImageAction"/>
         <separator/>
     </toolbar>
 </toolbars>
@@ -357,10 +359,16 @@
         <property name="name">
             <cstring>insertRectangleAction</cstring>
         </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
         <property name="iconSet">
             <iconset>image12</iconset>
         </property>
         <property name="text">
+            <string>Insert Rectangle</string>
+        </property>
+        <property name="menuText">
             <string>Rectangle</string>
         </property>
     </action>
@@ -368,10 +376,16 @@
         <property name="name">
             <cstring>insertMathAction</cstring>
         </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
         <property name="iconSet">
             <iconset>image13</iconset>
         </property>
         <property name="text">
+            <string>Insert Math</string>
+        </property>
+        <property name="menuText">
             <string>Math</string>
         </property>
     </action>
@@ -379,10 +393,16 @@
         <property name="name">
             <cstring>insertLineAction</cstring>
         </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
         <property name="iconSet">
             <iconset>image14</iconset>
         </property>
         <property name="text">
+            <string>Insert Line</string>
+        </property>
+        <property name="menuText">
             <string>Line</string>
         </property>
     </action>
@@ -412,11 +432,34 @@
         <property name="name">
             <cstring>insertArrowAction</cstring>
         </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
         <property name="iconSet">
             <iconset>image15</iconset>
         </property>
         <property name="text">
+            <string>Insert Arrow</string>
+        </property>
+        <property name="menuText">
             <string>Arrow</string>
+        </property>
+    </action>
+    <action>
+        <property name="name">
+            <cstring>insertImageAction</cstring>
+        </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
+        <property name="iconSet">
+            <iconset>image16</iconset>
+        </property>
+        <property name="text">
+            <string>Insert Image</string>
+        </property>
+        <property name="menuText">
+            <string>Image</string>
         </property>
     </action>
 </actions>
@@ -468,6 +511,9 @@
     </image>
     <image name="image15">
         <data format="PNG" length="359">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000012e49444154388dedd44d2bc45114c7f1cf7f66305253924ca490858785ec94a5853730a5948d9d6cbd002fc11bb0f60294c2d6c28e85050b2b764a11358ca7c5bde36136e3ff1f16caa95bb7733bdf7bceef9e73f9b7dfb6e407e23f335ee392cf08cca1801e94d011fd2f7570214386654c601a2398c106f6718de72ce02256b18001b4e3103742f5efb2e45282ab31b35b74e21167b88c674f324891a01763b84057841cc48baaa20c69c009fa51c124b662ec308e046d1fead9d603be031dc422fab0871341d7043541825a1a701ea358121e6a07a7b8d350fa676833701e5358c115b6718efb087defd934966016bb58177ab657e884b49df4053a2794bc867161c28aad422b38c63286d02d8c6c4bff4a199b988ffb12dab2401b03121f1f4a224c56e6476ae64b0dfd9bf6060b6d3cc0c35683650000000049454e44ae426082</data>
+    </image>
+    <image name="image16">
+        <data format="PNG" length="857">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000032049444154388dedd44f4cdb651cc7f1f7afbf7ffd3be8a088ba4d6218074cbc98e0124d13d865c0d5901e24c198c8018f268d319a1862d22a5c8c2270e1204b7e278f5c342da1d9a250831241aa039656dc6c0bacf3d776edaff4f150076ebf262e21defc1c9f3cdfd7f37d9e3cf9c27f14e9f18570387c66341a8da2fc03146705239188ad51c2e1b0386bfe36004e3b7e980b57df40d65c202b20ea38542792c3f1c81ebf4747551c58b53a47c50a00bb5f7d4c341a251289348765970fbdf5291497afe975bb3b5bb8d8eec1abab98158b4cbec8adbb05db3e1bac6a3abaaf15ddd7d638c8d178b6e3bae0d98e365e7abe9d172f9da7b3c5c5dd42998df421c56fd7ff1d5664054dd571795b0170d6cbb4f8fd688a8c2c81dfe3e4e956372f7707f8ee568ecc41098f4bb7c18ec71734dd89223938fe334fe2836b1cfdb14ff6a040ad2e611d4b942d41deacb2b67b40deac52b604c7c2c6d861bfc78957839b9fbc4e2c1623f9c5db1433db1c1ede27fdeb16997c91ed3b26ebb70b6cdf31d93faa70bf5c7f828e5585d8d49b8c8d8d914aa5989999e1fb853052f51e373f7d8b1f93ab6ca60b6cfc66f2f3ef256e1f54d154f5a4de34cde66ffccde7ef30303040575717abababc8b2cce0e020bf6c6df11e9bac7cf611a31f7e49b5fd397cfe005e5de3c8f29c80994ca6390c303434c4d2d212a5520955554924128c8e8e120c06999898e05e3acdd76b6bbc7f7d8da985cb0821c8647e0020914834877b7b7b59595921168b01303c3c4c2814221008303d3dcdf2f2323d3d3d5896c5d4c2653a5ed1b04c71028e8f8f130a85ec70f5d55d368a3bf4f5f551abd590248962b148329964676707cbb2c85ed8c47fc5c99507afc18d46ddf8f506d8dfdf4f369bb5c3cff82ee1ec96d9bff8130f727552468a4aa582ff6a8d73d79cbc1070a37915d4f3026ec0e2e22200c160906c364b3c1ec7300c3bdce6ee64dfbb8ec72ba377489c7b5706dc54cd1a9a5741382d54b7a07278fac5e6e7e789c7e300926118a79810e289a75ba954127b7b7b626e6e4e0062767656844221313939f948830a802449d018fa221a8d36fb284d333232422e97c3300cfb1cfe3f0ff31713a4a8d368d70ae80000000049454e44ae426082</data>
     </image>
 </images>
 <connections>

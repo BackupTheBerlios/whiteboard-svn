@@ -6,7 +6,7 @@ require 'test/unit'
 class TestRectangle < Test::Unit::TestCase
 	def test_create_rect()
 		w = WhiteboardMainWidget.new(nil)
-		w.insert_rectangle()
+		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		assert_equal(true, w.state.creating?)
 		w.left_mouse_press(10, 10)
 		w.left_mouse_move(30, 30)
@@ -18,10 +18,10 @@ class TestRectangle < Test::Unit::TestCase
 
 	def test_create_rects()
 		w = WhiteboardMainWidget.new(nil)
-		w.insert_rectangle()
+		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		w.left_mouse_press(10, 10)
 		w.left_mouse_release(10, 10)
-		w.insert_rectangle()
+		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		w.left_mouse_press(10, 10)
 		w.left_mouse_release(10, 10)
 		assert_equal(w.state.objects.length, 2)
@@ -31,7 +31,7 @@ class TestRectangle < Test::Unit::TestCase
 
 	def test_resize_rect()
 		w = WhiteboardMainWidget.new(nil)
-		w.insert_rectangle()
+		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		w.left_mouse_press(10, 10)
 		w.left_mouse_move(30, 30)
 		w.left_mouse_release(30, 30)

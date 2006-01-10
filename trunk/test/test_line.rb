@@ -8,7 +8,7 @@ $a = Qt::Application.new([]) if not defined? ($a)
 class TestLine < Test::Unit::TestCase
 	def test_line()
 		w = WhiteboardMainWidget.new(nil)
-		w.insert_line()
+		w.prepare_object_creation(WhiteboardLine.new(w))
 		assert_equal(true, w.state.creating?)
 		w.left_mouse_press(10, 10)
 		w.left_mouse_move(30, 30)
@@ -19,7 +19,7 @@ class TestLine < Test::Unit::TestCase
 		assert_equal(Qt::Point.new(30, 30), w.state.objects[0].end_point)
 		
 		# now do another line where the start point is to the bottom-right	
-		w.insert_line()
+		w.prepare_object_creation(WhiteboardLine.new(w))
 		assert_equal(true, w.state.creating?)
 		w.left_mouse_press(50, 50)
 		w.left_mouse_move(30, 30)
@@ -71,7 +71,7 @@ class TestLine < Test::Unit::TestCase
 
 	def test_move_line()
 		w = WhiteboardMainWidget.new(nil)
-		w.insert_line()
+		w.prepare_object_creation(WhiteboardLine.new(w))
 		w.left_mouse_press(50, 50)
 		w.left_mouse_move(70, 30)
 		w.left_mouse_release(70, 30)

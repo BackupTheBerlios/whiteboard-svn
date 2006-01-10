@@ -7,18 +7,20 @@ end
 
 class WhiteboardMathObject < WhiteboardObject
 	attr_reader :text
+	attr_writer :point #hack, should be private
+	signals 'started_editing(QString*)', 'finished_editing()'
 
-  def initialize(main_widget)
+  def initialize(main_widget = nil)
     super(main_widget)
 		@sprite = nil
   end
 
   def mousePress(e)
 		@point = Qt::Point.new(e.x, e.y)
-    @main_widget.show_text_panel()
+		emit started_editing('')
   end	
 
-	private
+	#hack (should be private?)
 	def set_text(text)
 		@text = text
 
@@ -40,7 +42,7 @@ class WhiteboardMathObject < WhiteboardObject
 
 	public
   def update_text(text)
-    @main_widget.hide_text_panel()
+		emit finished_editing()
 		if @sprite != nil
 			@sprite.hide()
 			@sprite = nil
@@ -53,18 +55,25 @@ class WhiteboardMathObject < WhiteboardObject
 		@canvas.update()
   end
 
-	def to_yaml_object()
-		MathYamlObject.new(@sprite.x, @sprite.y, @text)
+	def to_yaml_properties()
+		%w{ @x @y @text }
 	end
 
-	def from_yaml_object(o)
-		@point = Qt::Point.new(o.x, o.y)
-		set_text(o.text)
+	def to_yaml_object()
+		@x, @y = @sprite.x, @sprite.y
 		self
 	end
 
+	def from_yaml_object(main_widget)
+		w = WhiteboardMathObject.new(main_widget)
+		w.whiteboard_object_id = @whiteboard_object_id
+		w.point = Qt::Point.new(@x, @y)
+		w.set_text(@text)
+		w
+	end
+
   def select_object()
-    @main_widget.show_text_panel(@text)
+		emit started_editing(@text)
   end
 
 	def x() @sprite.x end
@@ -75,20 +84,4 @@ class WhiteboardMathObject < WhiteboardObject
 	def width() @sprite.width end
 	def height() @sprite.height end
 	def bounding_rect() @sprite.bounding_rect end
-end
-
-class MathYamlObject
-	attr_reader :x, :y, :text
-
-	def initialize(x, y, text)
-		@x, @y, @text = x, y, text
-	end
-	
-	def to_yaml_properties()
-		%w{ @x @y @text }
-	end
-
-	def to_actual_object(main_widget)
-		WhiteboardMathObject.new(main_widget).from_yaml_object(self)
-	end
 end

@@ -25,12 +25,12 @@ class TestWhiteboard < Test::Unit::TestCase
 
 	def test_selection()
 		w = WhiteboardMainWidget.new(nil)
-		w.insert_rectangle()
+		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		w.left_mouse_press(10, 10)
 		w.left_mouse_move(30, 30)
 		w.left_mouse_release(30, 30)
 
-		w.insert_rectangle()
+		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		w.left_mouse_press(50, 10)
 		w.left_mouse_move(70, 30)
 		w.left_mouse_release(70, 30)

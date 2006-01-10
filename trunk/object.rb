@@ -1,15 +1,31 @@
 require 'object_properties'
+require 'Qt'
 
-class WhiteboardObject
+class Qt::Color
+	def to_yaml_properties()
+		@r, @g, @b = red, green, blue
+		%w{ @r @g @b }
+	end
+
+	def from_yaml_object!()
+		puts "from yaml object #{@r} #{@g} #{@b}"
+		puts "#{@r} is a #{@r.class.to_s}"
+		#setRgb(@r.to_i, @g.to_i, @b.to_i)
+		puts "from yaml object"
+	end
+end
+
+class WhiteboardObject < Qt::Object
   attr_reader :canvas_items, :controller, :whiteboard_object_id, :line_colour, :line_width, :fill_colour
-	attr_writer :line_colour, :line_width, :fill_colour
+	attr_writer :line_colour, :line_width, :fill_colour, :whiteboard_object_id
+		# hack whiteboard-object-id shouldn't be public writable
 	@@num_objects = 0
 
   def initialize(main_widget)
+		super(nil)
 		set_main_widget(main_widget)
 		@whiteboard_object_id = "#{$user_id}:#{@@num_objects}"
 		@@num_objects += 1
-
 		@line_colour = Qt::black
 		@line_width = 1
 		@fill_colour = Qt::white
@@ -30,6 +46,23 @@ class WhiteboardObject
   def create(p) end
   def select_object() end
 	def hide() @canvas_items.each { |i| i.hide() } end
+
+	def to_yaml_properties()
+		%w{ @whiteboard_object_id @fill_colour_r @fill_colour_g @fill_colour_b @line_colour_r @line_colour_g @line_colour_b 
+			@line_width }
+	end
+
+	def to_yaml_object()
+		@fill_colour_r, @fill_colour_g, @fill_colour_b = @fill_colour.red, @fill_colour.green, @fill_colour.blue
+		@line_colour_r, @line_colour_g, @line_colour_b = @line_colour.red, @line_colour.green, @line_colour.blue
+		self
+	end
+
+	def from_yaml_object()
+		@fill_colour = Qt::Color.new(@fill_colour_r, @fill_colour_g, @fill_colour_b)
+		@line_colour = Qt::Color.new(@line_colour_r, @line_colour_g, @line_colour_b)
+		self
+	end
 
 	def to_s()
 		YAML.dump(to_yaml_object()).to_s
@@ -98,6 +131,7 @@ end
 
 class ObjectPropertiesForm < ObjectPropertiesUI
 	slots 'ok_clicked()', 'cancel_clicked()', 'line_colour_clicked()', 'fill_colour_clicked()'
+	signals 'updated(QString*)'
 
 	@@colours = []
 
@@ -120,6 +154,7 @@ class ObjectPropertiesForm < ObjectPropertiesUI
 		@object.line_width = @line_width.current_item + 1
 		@object.update()
 		close()
+		emit updated(@object.whiteboard_object_id)
 	end
 
 	def cancel_clicked()

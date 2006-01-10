@@ -15,11 +15,15 @@ end
 class WhiteboardRectangle < WhiteboardObject
 	attr_reader :rect
 
-  def initialize(main_widget)
-    super(main_widget)
+	def setup()
 		@rect = Qt::CanvasRectangle.new(0, 0, 0, 0, @canvas)
 		@rect.associated_object = self
 		@canvas_items = [@rect]
+	end
+
+  def initialize(main_widget)
+    super(main_widget)
+		setup()
   end
 
   def mousePress(e)
@@ -27,6 +31,7 @@ class WhiteboardRectangle < WhiteboardObject
 		@rect.move(e.x, e.y)
 		@rect.set_size(1, 1)
 		@rect.show()
+		update() #hack
 	end
 
   def mouseMove(e)
@@ -42,14 +47,23 @@ class WhiteboardRectangle < WhiteboardObject
     @main_widget.create_object(self)
   end
 
-	def to_yaml_object()
-		RectangleYamlObject.new(@whiteboard_object_id, @rect.x, @rect.y, @rect.width, @rect.height)
+	def to_yaml_properties()
+		super() + %w{ @x @y @width @height }
 	end
 
-	def from_yaml_object(y)
-		@whiteboard_object_id = y.whiteboard_object_id
-		@rect.move(y.x, y.y)
-		@rect.set_size(y.width, y.height)
+	def to_yaml_object()
+		super()
+		@x, @y, @width, @height = @rect.x, @rect.y, @rect.width, @rect.height
+		self 
+	end
+
+	def from_yaml_object(main_widget)
+		super()
+		set_main_widget(main_widget)
+		setup()
+		@rect.move(@x, @y)
+		@rect.set_size(@width, @height)
+		update() #hack
 		@rect.show()
 		self
 	end
@@ -68,20 +82,4 @@ class WhiteboardRectangle < WhiteboardObject
 	def width() @rect.width end
 	def height() @rect.height end
 	def bounding_rect() @rect.rect end
-end
-
-class RectangleYamlObject
-	attr_reader :whiteboard_object_id, :x, :y, :width, :height
-
-	def initialize(whiteboard_object_id, x, y, width, height)
-		@whiteboard_object_id, @x, @y, @width, @height = whiteboard_object_id, x, y, width, height
-	end
-	
-	def to_yaml_properties()
-		%w{ @whiteboard_object_id @x @y @width @height }
-	end
-
-	def to_actual_object(main_widget)
-		WhiteboardRectangle.new(main_widget).from_yaml_object(self)
-	end
 end

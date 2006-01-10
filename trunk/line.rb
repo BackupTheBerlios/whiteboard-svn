@@ -6,13 +6,17 @@ class Qt::CanvasLine
 end
 
 class WhiteboardLine < WhiteboardObject
-	def initialize(mainWidget, is_arrow = false)
-		super(mainWidget)
+	def setup()
 		@line = Qt::CanvasLine.new(@canvas)
 		@line.associated_object = self
 		@canvas_items = [@line]
-		@is_arrow = is_arrow
 		@arrow1, @arrow2 = nil, nil
+	end
+
+	def initialize(main_widget, is_arrow = false)
+		super(main_widget)
+		@is_arrow = is_arrow
+		setup()
 	end
 
 	def mousePress(e)
@@ -31,16 +35,21 @@ class WhiteboardLine < WhiteboardObject
     @main_widget.create_object(self)
   end
 
-	def to_yaml_object()
-		LineYamlObject.new(@whiteboard_object_id, @line.start_point.x, @line.start_point.y,
-			@line.end_point.x, @line.end_point.y, @is_arrow)
+	def to_yaml_properties()
+		%w{ @whiteboard_object_id @x1 @x2 @y1 @y2 @is_arrow }
 	end
 
-	def from_yaml_object(y)
-		@whiteboard_object_id = y.whiteboard_object_id
-		@line.set_points(y.x1, y.x2, y.y1, y.y2)
+	def to_yaml_object()
+		@x1, @x2, @y1, @y2 = @line.start_point.x, @line.start_point.y, @line.end_point.x, @line.end_point.y
+		self
+	end
+
+	def from_yaml_object(main_widget)
+		set_main_widget(main_widget)
+		setup()
+		@line.set_canvas(@canvas)
+		@line.set_points(@x1, @x2, @y1, @y2)
 		@line.show()
-		@is_arrow = y.is_arrow
 		update_arrow()
 		self
 	end
@@ -109,18 +118,8 @@ class WhiteboardLine < WhiteboardObject
 	def set_points(x1, y1, x2, y2) @line.set_points(x1, y1, x2, y2) end
 end
 
-class LineYamlObject
-	attr_reader :whiteboard_object_id, :x1, :y1, :x2, :y2, :is_arrow
-
-	def initialize(whiteboard_object_id, x1, x2, y1, y2, is_arrow)
-		@whiteboard_object_id, @x1, @x2, @y1, @y2, @is_arrow = whiteboard_object_id, x1, x2, y1, y2, is_arrow
-	end
-	
-	def to_yaml_properties()
-		%w{ @whiteboard_object_id @x1 @x2 @y1 @y2 @is_arrow }
-	end
-
-	def to_actual_object(main_widget)
-		WhiteboardLine.new(main_widget).from_yaml_object(self)
+class WhiteboardArrow <  WhiteboardLine
+	def initialize(main_widget)
+		super(main_widget, true)
 	end
 end

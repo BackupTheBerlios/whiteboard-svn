@@ -10,6 +10,7 @@ require 'object'
 require 'rectangle'
 require 'math'
 require 'line'
+require 'image'
 require 'network'
 require 'object_popupmenu'
 require 'yaml'
@@ -29,36 +30,25 @@ def total_bounding_rect(rects)
 end
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
-  slots 'math()', 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
-		'timeout()', 'networkEvent(QString*)', 
-		'connection(QString*, int)', 'network_connect()', 'start_server()', 'file_save()', 'file_open()',
-		'networkMessage(QString*)'
+  slots 'timeout()', 'networkEvent(QString*)', 'networkMessage(QString*)',
+		'network_connect()', 'start_server()', 'file_save()', 'file_open()',
+		'insert_rectangle()', 'insert_math()', 'insert_line()', 'insert_arrow()', 'insert_image()',
+		'no_item_creating()'
 	
 	def timeout() end
-
-	def networkEvent(s)
-		m = s.match(Regexp.new('creating:(.*)', Regexp::MULTILINE))
-		if m != nil
-			r = YAML.load(m[1].to_s).to_actual_object(@widget) 
-			@widget.create_object(r, false)
-		end
-
-		m = s.match(Regexp.new('move:([^:]*):([^:]*):([^:]*):([^:]*)'))
-		if m != nil
-			@widget.move_object("#{m[1]}:#{m[2]}", m[3].to_i, m[4].to_i)
-		end
-	end
 
 	def networkMessage(s)
 		msg = NetworkMessage.from_line(s)
 		if msg.is_a?(CreateObjectMessage)
-			@widget.create_object(msg.object.to_actual_object(@widget), false)
+			@widget.create_object(msg.object.from_yaml_object(@widget), false)
 		elsif msg.is_a?(MoveObjectMessage)
 			@widget.move_object(msg.object_id, msg.x, msg.y)
 		elsif msg.is_a?(ResizeObjectMessage)
 			@widget.resize_object_by_id(msg.object_id, msg.mx, msg.my, msg.dx, msg.dy)
 		elsif msg.is_a?(DeleteObjectMessage)
 			@widget.delete_object_by_id(msg.object_id)
+		elsif msg.is_a?(ChangeObjectMessage)
+			@widget.change_object(msg.object_id, msg.object)
 		end
 	end
 
@@ -71,7 +61,6 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		if text != nil
 			address, port = text.split(':')
 			@network_interface.start_client(address, port.to_i)
-			t = Thread.new { @network_interface.run() }
 			statusBar().message("Connected", 2000)
 		else
 			statusBar().message("Connection cancelled", 2000)
@@ -79,9 +68,8 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 	end	
 
 	def start_server()
-		@network_interface.start_server($port)
-		t = Thread.new { @network_interface.run() }
-		statusBar().message("Server started on port #{$port}", 3000)
+		@network_interface.start_server(@port)
+		statusBar().message("Server started on port #{@port}", 3000)
 	end
 
 	def file_save()
@@ -118,23 +106,32 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		end
 	end
 
-  def initialize()
-    super
+  def initialize(port, parent = nil, name = nil)
+    super(parent, name)
+
+		@port = port
 
     statusBar().message("Welcome to whiteboard!", 2000)
 
     @widget = WhiteboardMainWidget.new(self)
     @widget.show()
-    setCentralWidget(@widget)
+    set_central_widget(@widget)
 
     connect(@fileSaveAction, SIGNAL('activated()'), SLOT('file_save()'))
     connect(@fileOpenAction, SIGNAL('activated()'), SLOT('file_open()'))
-    connect(@insertRectangleAction, SIGNAL('activated()'), @widget, SLOT('insert_rectangle()'))
-    connect(@insertMathAction, SIGNAL('activated()'), @widget, SLOT('insert_math()'))
-    connect(@insertLineAction, SIGNAL('activated()'), @widget, SLOT('insert_line()'))
-    connect(@insertArrowAction, SIGNAL('activated()'), @widget, SLOT('insert_arrow()'))
+
+		@item_actions = [@insertRectangleAction, @insertMathAction, @insertLineAction, @insertArrowAction, @insertImageAction]
+
+    connect(@insertRectangleAction, SIGNAL('activated()'), SLOT('insert_rectangle()'))
+    connect(@insertMathAction, SIGNAL('activated()'), SLOT('insert_math()'))
+    connect(@insertLineAction, SIGNAL('activated()'), SLOT('insert_line()'))
+    connect(@insertArrowAction, SIGNAL('activated()'), SLOT('insert_arrow()'))
+    connect(@insertImageAction, SIGNAL('activated()'), SLOT('insert_image()'))
+		
 		connect(@connectAction, SIGNAL('activated()'), SLOT('network_connect()'))
 		connect(@startServerAction, SIGNAL('activated()'), SLOT('start_server()'))
+
+		connect(@widget, SIGNAL('object_created()'), SLOT('no_item_creating()'))
 		
 		# timer is an unfortunate hack to get the network thread called.
 		# apparently you need to execute some ruby code periodically otherwise
@@ -144,19 +141,51 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		timer.start(0)
 
 		@network_interface = NetworkInterface.new()
-		set_caption("Whiteboard: #{$port}")
-		#connect(@network_interface, SIGNAL('event(QString*)'), SLOT('networkEvent(QString*)'))
+		set_caption("Whiteboard: #{@port}")
 		connect(@network_interface, SIGNAL('message(QString*)'), SLOT('networkMessage(QString*)'))
-		#connect(@network_interface, SIGNAL('connection(QString*, int)'), SLOT('connection(QString*, int)'))
 
 		@widget.network_interface = @network_interface
 
 		setMinimumSize(800, 400)
   end
+
+	def set_activated(it)
+		@item_actions.each { |i| i.set_on(i == it) }
+	end
+
+	def no_item_creating() set_activated(nil) end
+
+	def insert_rectangle()
+		set_activated(@insertRectangleAction)	
+		@widget.prepare_object_creation(WhiteboardRectangle.new(@widget))
+	end
+
+	def insert_math()
+		set_activated(@insertMathAction)	
+		m = WhiteboardMathObject.new(@widget)
+		connect(m, SIGNAL('started_editing(QString*)'), @widget, SLOT('show_text_panel(QString*)'))
+		connect(m, SIGNAL('finished_editing()'), @widget, SLOT('hide_text_panel()'))
+		@widget.prepare_object_creation(m)
+	end
+
+	def insert_line()
+		set_activated(@insertLineAction)	
+		@widget.prepare_object_creation(WhiteboardLine.new(@widget))
+	end
+
+	def insert_arrow()
+		set_activated(@insertArrowAction)	
+		@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
+	end
+
+	def insert_image()
+		set_activated(@insertImageAction)	
+		@widget.prepare_object_creation(WhiteboardImageObject.new(@widget))
+	end
 end
 
 class ControlPoint < Qt::CanvasRectangle
-  attr_reader :parent
+  attr_reader :parent, :mx, :my
 	attr_writer :parent
 
   def	initialize(boundingRect, canvas, parent = nil)
@@ -248,9 +277,11 @@ class WhiteboardMainWidget < Qt::Widget
   attr_reader :canvas_view, :canvas, :pixmaps, :state, :network_interface
 	attr_writer :network_interface
 
+	signals 'object_created()'
+
   slots 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
-		'insert_rectangle()', 'insert_math()', 'insert_line()', 'insert_arrow()', 'timeout()', 'networkEvent(QString*)', 
-		'connection(QString*, int)'
+		'insert_rectangle()', 'insert_math()', 'insert_line()', 'insert_arrow()', 'insert_image()',
+		'show_text_panel(QString*)', 'hide_text_panel()', 'properties_changed(QString*)'
   
 	ControlPointSize = 10
   ObjectMinimumSize = 5
@@ -310,12 +341,25 @@ class WhiteboardMainWidget < Qt::Widget
 	############
 	# State Modification Functions
 	############
+ 
+	def prepare_object_creation(ob)
+		@state.prepare_object_creation(ob)
+		set_cursor(Qt::Cursor.new(Qt::CrossCursor))
+	end
   
 	def create_object(object, broadcast = true)	
     @state.create_object(object)
     @canvas.update()
 		if broadcast and @network_interface != nil and @network_interface.started? then
 			@network_interface.broadcast_message(CreateObjectMessage.new(object.to_yaml_object()))
+		end
+
+		# hack: we use broadcast == true because that means the object is 
+		# created by the user rather than by a message etc.  do this properly
+		# one day.
+		if broadcast == true
+			emit object_created() 
+			set_cursor(Qt::Cursor.new(Qt::ArrowCursor))
 		end
   end
 
@@ -328,10 +372,11 @@ class WhiteboardMainWidget < Qt::Widget
 		@state.objects.each { |i| 
 			if i.whiteboard_object_id == whiteboard_object_id
 				i.hide() 
-				i = nil
+				# tag with whiteboard_object_id = nil so we remove it next
+				i.whiteboard_object_id = nil 
 			end
 		}
-		@state.objects.delete_if { |i| i == nil }
+		@state.objects.delete_if { |i| i.whiteboard_object_id == nil }
 		@canvas.update()
 	end
 
@@ -339,6 +384,13 @@ class WhiteboardMainWidget < Qt::Widget
 		ob = @state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }
 		resize_object(ob, mx, my, dx, dy)
 		@canvas.update()
+	end
+
+	def change_object(whiteboard_object_id, object)
+		delete_object_by_id(whiteboard_object_id)
+		ob = object.from_yaml_object(self)
+		ob.whiteboard_object_id = whiteboard_object_id
+		create_object(ob, false)
 	end
 
 	def resize_object(object, mx, my, dx, dy)
@@ -356,22 +408,6 @@ class WhiteboardMainWidget < Qt::Widget
 		true
 	end
 
-  def insert_rectangle()
-    @state.prepare_object_creation(WhiteboardRectangle.new(self))
-  end
-  
-  def insert_math()
-    @state.prepare_object_creation(WhiteboardMathObject.new(self))
-  end
-  
-	def insert_line()
-    @state.prepare_object_creation(WhiteboardLine.new(self))
-  end
-	
-	def insert_arrow()
-    @state.prepare_object_creation(WhiteboardLine.new(self, true))
-  end
-
 	############
 	# Events
 	############
@@ -379,6 +415,7 @@ class WhiteboardMainWidget < Qt::Widget
   def mousePress(e)
 		if (e.button == Qt::RightButton)
 			p = ObjectPopupMenu.new(@state.selected_objects[0], self)
+			connect(p, SIGNAL('properties_changed(QString*)'), SLOT('properties_changed(QString*)'))
 			p.popup(e.global_pos)
 			return
 		end
@@ -389,6 +426,8 @@ class WhiteboardMainWidget < Qt::Widget
     elsif list.empty?
       @state.deselect_all()
 
+			hide_text_panel()
+
       @selection_rectangle = Qt::CanvasRectangle.new(e.pos.x, e.pos.y, 1, 1, @canvas)
       # we keep the original point from which the rectangle is repeatedly drawn
       @selectionPoint1 = Qt::Point.new(e.pos.x, e.pos.y)
@@ -397,6 +436,16 @@ class WhiteboardMainWidget < Qt::Widget
       @control_points = []
     else 
       if @control_points.index(list[0]) != nil
+				if list[0].mx.abs == 1 and list[0].my == 0
+					set_cursor(Qt::Cursor.new(SizeHorCursor))
+				elsif list[0].mx == 0 and list[0].my.abs == 1
+					set_cursor(Qt::Cursor.new(SizeVerCursor))
+				elsif list[0].mx == list[0].my
+					set_cursor(Qt::Cursor.new(SizeFDiagCursor))
+				else
+					set_cursor(Qt::Cursor.new(SizeBDiagCursor))
+				end
+
         # go to the Resizing state if we click on a control point
         @state.resize_object(list[0])
 
@@ -438,7 +487,7 @@ class WhiteboardMainWidget < Qt::Widget
 			cp = @state.selected_control_point.multipliers() 
 
 			if not resize_object(@state.total_selection_object, cp[0], cp[1], dx, dy)
-				Qt::Cursor.setPos(mapToGlobal(@mouse_pos))
+				Qt::Cursor.set_pos(mapToGlobal(@mouse_pos))
 				return false
 			end
 			
@@ -447,6 +496,8 @@ class WhiteboardMainWidget < Qt::Widget
 				@state.selected_objects[0].whiteboard_object_id, cp[0], cp[1], dx, dy))
 			update_control_points()
 		else
+			set_cursor(Qt::Cursor.new(Qt::SizeAllCursor))
+				
 			@state.selected_objects.each do |i|
 				i.move_by(e.x - @mouse_pos.x, e.y - @mouse_pos.y)
 				@network_interface.broadcast_message(MoveObjectMessage.new(i.whiteboard_object_id, i.x, i.y))
@@ -463,6 +514,7 @@ class WhiteboardMainWidget < Qt::Widget
 		if (e.button == Qt::RightButton)
 			return
 		end
+
     @mouse_button_state = @@mouseStates::Up
     if @state.creating?
       @state.controller.mouseRelease(e)
@@ -474,6 +526,8 @@ class WhiteboardMainWidget < Qt::Widget
 		elsif @state.resizing?
 			@state.set_default()
 		end
+
+		set_cursor(Qt::Cursor.new(Qt::ArrowCursor))
   end
 
 	def keyPressEvent(e)
@@ -491,6 +545,11 @@ class WhiteboardMainWidget < Qt::Widget
 		else
 			e.ignore()
 		end
+	end
+
+	def properties_changed(s)
+		ob = @state.objects.find { |o| o.whiteboard_object_id == s }
+		@network_interface.broadcast_message(ChangeObjectMessage.new(s, ob.to_yaml_object()))
 	end
 
   def create_control_points()

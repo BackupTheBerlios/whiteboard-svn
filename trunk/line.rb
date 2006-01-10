@@ -82,6 +82,11 @@ class WhiteboardLine < WhiteboardObject
 		end
 	end
 	
+	def update_properties()
+		@canvas_items.each { |c| c.set_pen(Qt::Pen.new(@line_colour, @line_width)) }
+		@canvas.update()
+	end
+	
 	def x() [@line.start_point.x, @line.end_point.x].min end
 	def y() [@line.start_point.y, @line.end_point.y].min end
 	

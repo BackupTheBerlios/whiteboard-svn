@@ -11,6 +11,7 @@ require 'rectangle'
 require 'math'
 require 'line'
 require 'image'
+require 'freeform'
 require 'network'
 require 'object_popupmenu'
 require 'yaml'
@@ -175,7 +176,8 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 
 	def insert_arrow()
 		set_activated(@insertArrowAction)	
-		@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
+		#@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
+		@widget.prepare_object_creation(WhiteboardFreeForm.new(@widget))
 	end
 
 	def insert_image()

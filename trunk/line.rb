@@ -60,7 +60,9 @@ class WhiteboardLine < WhiteboardObject
 				@line.end_point.x - @line.start_point.x)
 			if @arrow1 == nil
 				@arrow1 = Qt::CanvasLine.new(@canvas)
+				@arrow1.associated_object = self
 				@arrow2 = Qt::CanvasLine.new(@canvas)
+				@arrow2.associated_object = self
 				@arrow1.show()
 				@arrow2.show()
 				@canvas_items = [@line, @arrow1, @arrow2]

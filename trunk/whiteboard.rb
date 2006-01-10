@@ -252,7 +252,7 @@ class WhiteboardState
   end
 
   def select_objects(o)
-    @selected_objects = o
+    @selected_objects = o.uniq()
   end
   
   def create_object(object)

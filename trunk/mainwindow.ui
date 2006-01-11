@@ -8,8 +8,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>723</width>
-            <height>480</height>
+            <width>754</width>
+            <height>473</height>
         </rect>
     </property>
     <property name="caption">
@@ -50,11 +50,13 @@
         <separator/>
     </item>
     <item text="&amp;Insert" name="Insert">
-        <action name="insertRectangleAction"/>
-        <action name="insertMathAction"/>
-        <action name="insertLineAction"/>
-        <action name="insertArrowAction"/>
-        <action name="insertImageAction"/>
+        <action name="insert_freeform_action"/>
+        <action name="insert_rectangle_action"/>
+        <action name="insert_ellipse_action"/>
+        <action name="insert_math_action"/>
+        <action name="insert_line_action"/>
+        <action name="insert_arrow_action"/>
+        <action name="insert_image_action"/>
     </item>
     <item text="&amp;Help" name="helpMenu">
         <action name="helpContentsAction"/>
@@ -123,11 +125,13 @@
         <action name="editCopyAction"/>
         <action name="editPasteAction"/>
         <separator/>
-        <action name="insertRectangleAction"/>
-        <action name="insertMathAction"/>
-        <action name="insertLineAction"/>
-        <action name="insertArrowAction"/>
-        <action name="insertImageAction"/>
+        <action name="insert_freeform_action"/>
+        <action name="insert_rectangle_action"/>
+        <action name="insert_ellipse_action"/>
+        <action name="insert_math_action"/>
+        <action name="insert_line_action"/>
+        <action name="insert_arrow_action"/>
+        <action name="insert_image_action"/>
         <separator/>
     </toolbar>
 </toolbars>
@@ -357,7 +361,7 @@
     </action>
     <action>
         <property name="name">
-            <cstring>insertRectangleAction</cstring>
+            <cstring>insert_rectangle_action</cstring>
         </property>
         <property name="toggleAction">
             <bool>true</bool>
@@ -374,7 +378,7 @@
     </action>
     <action>
         <property name="name">
-            <cstring>insertMathAction</cstring>
+            <cstring>insert_math_action</cstring>
         </property>
         <property name="toggleAction">
             <bool>true</bool>
@@ -391,7 +395,7 @@
     </action>
     <action>
         <property name="name">
-            <cstring>insertLineAction</cstring>
+            <cstring>insert_line_action</cstring>
         </property>
         <property name="toggleAction">
             <bool>true</bool>
@@ -430,7 +434,7 @@
     </action>
     <action>
         <property name="name">
-            <cstring>insertArrowAction</cstring>
+            <cstring>insert_arrow_action</cstring>
         </property>
         <property name="toggleAction">
             <bool>true</bool>
@@ -447,7 +451,7 @@
     </action>
     <action>
         <property name="name">
-            <cstring>insertImageAction</cstring>
+            <cstring>insert_image_action</cstring>
         </property>
         <property name="toggleAction">
             <bool>true</bool>
@@ -460,6 +464,37 @@
         </property>
         <property name="menuText">
             <string>Image</string>
+        </property>
+    </action>
+    <action>
+        <property name="name">
+            <cstring>insert_freeform_action</cstring>
+        </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
+        <property name="iconSet">
+            <iconset>image17</iconset>
+        </property>
+        <property name="text">
+            <string>Scribble</string>
+        </property>
+    </action>
+    <action>
+        <property name="name">
+            <cstring>insert_ellipse_action</cstring>
+        </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
+        <property name="iconSet">
+            <iconset>image18</iconset>
+        </property>
+        <property name="text">
+            <string>Insert Ellipse</string>
+        </property>
+        <property name="menuText">
+            <string>Ellipse</string>
         </property>
     </action>
 </actions>
@@ -514,6 +549,12 @@
     </image>
     <image name="image16">
         <data format="PNG" length="857">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000032049444154388dedd44f4cdb651cc7f1f7afbf7ffd3be8a088ba4d6218074cbc98e0124d13d865c0d5901e24c198c8018f268d319a1862d22a5c8c2270e1204b7e278f5c342da1d9a250831241aa039656dc6c0bacf3d776edaff4f150076ebf262e21defc1c9f3cdfd7f37d9e3cf9c27f14e9f18570387c66341a8da2fc03146705239188ad51c2e1b0386bfe36004e3b7e980b57df40d65c202b20ea38542792c3f1c81ebf4747551c58b53a47c50a00bb5f7d4c341a251289348765970fbdf5291497afe975bb3b5bb8d8eec1abab98158b4cbec8adbb05db3e1bac6a3abaaf15ddd7d638c8d178b6e3bae0d98e365e7abe9d172f9da7b3c5c5dd42998df421c56fd7ff1d5664054dd571795b0170d6cbb4f8fd688a8c2c81dfe3e4e956372f7707f8ee568ecc41098f4bb7c18ec71734dd89223938fe334fe2836b1cfdb14ff6a040ad2e611d4b942d41deacb2b67b40deac52b604c7c2c6d861bfc78957839b9fbc4e2c1623f9c5db1433db1c1ede27fdeb16997c91ed3b26ebb70b6cdf31d93faa70bf5c7f828e5585d8d49b8c8d8d914aa5989999e1fb853052f51e373f7d8b1f93ab6ca60b6cfc66f2f3ef256e1f54d154f5a4de34cde66ffccde7ef30303040575717abababc8b2cce0e020bf6c6df11e9bac7cf611a31f7e49b5fd397cfe005e5de3c8f29c80994ca6390c303434c4d2d212a5520955554924128c8e8e120c06999898e05e3acdd76b6bbc7f7d8da985cb0821c8647e0020914834877b7b7b59595921168b01303c3c4c2814221008303d3dcdf2f2323d3d3d5896c5d4c2653a5ed1b04c71028e8f8f130a85ec70f5d55d368a3bf4f5f551abd590248962b148329964676707cbb2c85ed8c47fc5c99507afc18d46ddf8f506d8dfdf4f369bb5c3cff82ee1ec96d9bff8130f727552468a4aa582ff6a8d73d79cbc1070a37915d4f3026ec0e2e22200c160906c364b3c1ec7300c3bdce6ee64dfbb8ec72ba377489c7b5706dc54cd1a9a5741382d54b7a07278fac5e6e7e789c7e300926118a79810e289a75ba954127b7b7b626e6e4e0062767656844221313939f948830a802449d018fa221a8d36fb284d333232422e97c3300cfb1cfe3f0ff31713a4a8d368d70ae80000000049454e44ae426082</data>
+    </image>
+    <image name="image17">
+        <data format="PNG" length="287">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b000000e649444154388db5d4318e83301085e19f28450ec00db80065bae5683e0f15450e30e98c44b1155568a839c0766f0b48a24449009b4c618d3dd6578d1e6c540e24909c938136430d2433d9d47f053550128b16c08f19e7a2b8bd1b100c7f420985e75017022f41816415bc14bd1d5ba38be1b5e82238049d8543d18f700cfa76108bbe1c0a40525dd7fc1d8f4128c0ee19ed2e1701a469cac1fb20f401d698a6645946d7750cc330a2cead4601f64f775dd1beef69db96aaaaf85d89de35094918c87bafb22c95e7b9880dec0630901bb7414c5b1153493335a731f9b1888c7ea866fe4b50fd036254a77a6cb411ba0000000049454e44ae426082</data>
+    </image>
+    <image name="image18">
+        <data format="PNG" length="619">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000023249444154388db5955d6b134114869f994c955a2894d02a7815bceb1f2925f907f6d7da1b6f0acdad450c884828222893dd9d4f2fb2673abb49b5085d184898d9e7bce73de7ccc2333dea896764c993abf55f41272388ac53e055bfbf57dc638a351001acb58410f0ded3751dce3966b3999c7b03fc023a20fd0bac81e8bd27a5444a891823de7bdab6a5691a9c73a494383f3f077807ac81a686eb7dd010c2f68fd64c2693b28c311863d05a935262b95c027c065e038735af06ab31542935585aeb1df8cdcd4d0d7f292ed4e0f25ba90787c48e9c334a298c311c1c1c608c412985f75e8ebe058ed916b4c01410442d40ceb9f81b6324e75c828a2d5a6b72ce5c5f5f037c004e801780aac145590d15c529a502d65a17ab524a38e744cf29700468538343088317042c6a25a8044e291142a0caf44814ef80a570e30c6aa0f4b5730eef7d0dd6c2127006f0de93731e74c4d81a1994baa72523b67d9cebe265e06c3a9d961745c97848baaea3691aacb5b46d4b8c91c56201700558c001b9566c25fd1863f15b2a1f63a4eb3a369b0dd65a369b0ddefb621bf01bb8ef39a91ee9093005d6abd56ad0bb39e732d2d6da8105f3f91ce03df015f804fc00420d566c27e71858dfdddd114228ea05dcb62dde7b94525c5e5e0a740d7c01be032d90c79790ea7d3fec53e3f6f6b6dc6ace3942085c5c5cc8f91a3ab8881ebb36c59619f071cffe551ff827f06d0cfd1bb8b6e5043863dbfc8a8742dff7e027dfc7f59eee039489eac1ae870b70e713f56cdfbc3fd07dbc70c9bdbc740000000049454e44ae426082</data>
     </image>
 </images>
 <connections>

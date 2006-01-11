@@ -36,7 +36,7 @@ class WhiteboardLine < WhiteboardObject
   end
 
 	def to_yaml_properties()
-		%w{ @whiteboard_object_id @x1 @x2 @y1 @y2 @is_arrow }
+		super() + %w{ @x1 @x2 @y1 @y2 @is_arrow }
 	end
 
 	def to_yaml_object()

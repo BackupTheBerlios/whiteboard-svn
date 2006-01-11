@@ -56,7 +56,7 @@ class WhiteboardMathObject < WhiteboardObject
   end
 
 	def to_yaml_properties()
-		%w{ @x @y @text }
+		super() + %w{ @x @y @text }
 	end
 
 	def to_yaml_object()

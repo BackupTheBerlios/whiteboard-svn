@@ -11,6 +11,7 @@ require 'rectangle'
 require 'math'
 require 'line'
 require 'image'
+require 'ellipse'
 require 'freeform'
 require 'network'
 require 'object_popupmenu'
@@ -33,8 +34,7 @@ end
 class WhiteboardMainWindow < WhiteboardMainWindowUI
   slots 'timeout()', 'networkEvent(QString*)', 'networkMessage(QString*)',
 		'network_connect()', 'start_server()', 'file_save()', 'file_open()',
-		'insert_rectangle()', 'insert_math()', 'insert_line()', 'insert_arrow()', 'insert_image()',
-		'no_item_creating()'
+		'insert_object(bool)', 'no_item_creating()'
 	
 	def timeout() end
 
@@ -121,13 +121,30 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
     connect(@fileSaveAction, SIGNAL('activated()'), SLOT('file_save()'))
     connect(@fileOpenAction, SIGNAL('activated()'), SLOT('file_open()'))
 
-		@item_actions = [@insertRectangleAction, @insertMathAction, @insertLineAction, @insertArrowAction, @insertImageAction]
+		# When you add a new kind of object, add the action
+		# into this hash.  If the value you specify is a class,
+		# a raw object of that class will be created,
+		# or you can pass a Proc object that will execute whatever
+		# you want.  The Proc object should call @widget.prepare_object_creation(...)
+		
+		@item_actions = {
+			"@insert_rectangle_action" => WhiteboardRectangle,
+			"@insert_math_action" => Proc.new do 
+				m = WhiteboardMathObject.new(@widget)
+				connect(m, SIGNAL('started_editing(QString*)'), @widget, SLOT('show_text_panel(QString*)'))
+				connect(m, SIGNAL('finished_editing()'), @widget, SLOT('hide_text_panel()'))
+				@widget.prepare_object_creation(m)
+			end,
+			"@insert_line_action" => WhiteboardLine,
+			"@insert_arrow_action" => WhiteboardArrow,
+			"@insert_image_action" => WhiteboardImageObject,
+			"@insert_ellipse_action" => WhiteboardEllipse,
+			"@insert_freeform_action" => WhiteboardFreeForm
+		}
 
-    connect(@insertRectangleAction, SIGNAL('activated()'), SLOT('insert_rectangle()'))
-    connect(@insertMathAction, SIGNAL('activated()'), SLOT('insert_math()'))
-    connect(@insertLineAction, SIGNAL('activated()'), SLOT('insert_line()'))
-    connect(@insertArrowAction, SIGNAL('activated()'), SLOT('insert_arrow()'))
-    connect(@insertImageAction, SIGNAL('activated()'), SLOT('insert_image()'))
+		@item_actions.each do |s, v|
+			connect(instance_variable_get(s), SIGNAL('toggled(bool)'), SLOT("insert_object(bool)"))
+		end
 		
 		connect(@connectAction, SIGNAL('activated()'), SLOT('network_connect()'))
 		connect(@startServerAction, SIGNAL('activated()'), SLOT('start_server()'))
@@ -150,39 +167,21 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		setMinimumSize(800, 400)
   end
 
-	def set_activated(it)
-		#@item_actions.each { |i| i.set_on(i == it) }
+	def no_item_creating() 
+		@item_actions.each { |s, v| instance_variable_get(s).set_on(false) }
 	end
 
-	def no_item_creating() set_activated(nil) end
-
-	def insert_rectangle()
-		set_activated(@insertRectangleAction)	
-		@widget.prepare_object_creation(WhiteboardRectangle.new(@widget))
-	end
-
-	def insert_math()
-		set_activated(@insertMathAction)	
-		m = WhiteboardMathObject.new(@widget)
-		connect(m, SIGNAL('started_editing(QString*)'), @widget, SLOT('show_text_panel(QString*)'))
-		connect(m, SIGNAL('finished_editing()'), @widget, SLOT('hide_text_panel()'))
-		@widget.prepare_object_creation(m)
-	end
-
-	def insert_line()
-		set_activated(@insertLineAction)	
-		@widget.prepare_object_creation(WhiteboardLine.new(@widget))
-	end
-
-	def insert_arrow()
-		set_activated(@insertArrowAction)	
-		#@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
-		@widget.prepare_object_creation(WhiteboardArrow.new(@widget))
-	end
-
-	def insert_image()
-		set_activated(@insertImageAction)	
-		@widget.prepare_object_creation(WhiteboardImageObject.new(@widget))
+	def insert_object(b)
+		return if not b
+		@item_actions.each do |s, v| 
+			if instance_variable_get(s).is_on()
+				if v.is_a?(Class)
+					@widget.prepare_object_creation(v.new(@widget)) 
+				elsif v.is_a?(Proc)
+					v.call()
+				end
+			end
+		end
 	end
 end
 
@@ -282,7 +281,7 @@ class WhiteboardMainWidget < Qt::Widget
 	signals 'object_created()'
 
   slots 'update()', 'mousePress(QMouseEvent*)', 'mouseMove(QMouseEvent*)', 'mouseRelease(QMouseEvent*)', 
-		'insert_rectangle()', 'insert_math()', 'insert_line()', 'insert_arrow()', 'insert_image()',
+		'insert_rectangle(bool)', 'insert_math()', 'insert_line()', 'insert_arrow()', 'insert_image()',
 		'show_text_panel(QString*)', 'hide_text_panel()', 'properties_changed(QString*)'
   
 	ControlPointSize = 10

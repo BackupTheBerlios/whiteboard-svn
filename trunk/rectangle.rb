@@ -13,25 +13,21 @@ class Qt::CanvasRectangle
 end
 
 class WhiteboardRectangle < WhiteboardObject
-	attr_reader :rect
-
-	def setup()
-		@rect = Qt::CanvasRectangle.new(0, 0, 0, 0, @canvas)
-		@rect.associated_object = self
-		@canvas_items = [@rect]
-	end
-
   def initialize(main_widget)
     super(main_widget)
 		setup()
   end
 
+	def setup()
+		@rect = Qt::CanvasRectangle.new(0, 0, 0, 0, @canvas)
+		@rect.associated_object = self
+		@canvas_items = [@rect]
+		update_properties() 
+	end
+
   def mousePress(e)
     @point1 = Qt::Point.new(e.x, e.y)
-		@rect.move(e.x, e.y)
-		@rect.set_size(1, 1)
-		@rect.show()
-		update_properties() #hack?
+		set_geometry(e.x, e.y, 1, 1)
 	end
 
   def mouseMove(e)
@@ -58,14 +54,16 @@ class WhiteboardRectangle < WhiteboardObject
 	end
 
 	def from_yaml_object(main_widget)
-		super()
-		set_main_widget(main_widget)
+		super(main_widget)
 		setup()
-		@rect.move(@x, @y)
-		@rect.set_size(@width, @height)
-		update_properties()
-		@rect.show()
+		set_geometry(@x, @y, @width, @height)
 		self
+	end
+
+	def set_geometry(x, y, width, height)
+		@rect.move(x, y)
+		@rect.set_size(width, height)
+		@rect.show()
 	end
 
 	def update_properties()

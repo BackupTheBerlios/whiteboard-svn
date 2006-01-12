@@ -7,7 +7,7 @@ $a = Qt::Application.new([]) if not defined? ($a)
 
 class TestLine < Test::Unit::TestCase
 	def test_line()
-		w = WhiteboardMainWidget.new(nil)
+		w = WhiteboardMainWidget.new('blah', nil)
 		w.prepare_object_creation(WhiteboardLine.new(w))
 		assert_equal(true, w.state.creating?)
 		w.left_mouse_press(10, 10)
@@ -70,7 +70,7 @@ class TestLine < Test::Unit::TestCase
 	end
 
 	def test_move_line()
-		w = WhiteboardMainWidget.new(nil)
+		w = WhiteboardMainWidget.new('blah', nil)
 		w.prepare_object_creation(WhiteboardLine.new(w))
 		w.left_mouse_press(50, 50)
 		w.left_mouse_move(70, 30)

@@ -32,24 +32,87 @@ def total_bounding_rect(rects)
 end
 
 class WhiteboardMainWindow < WhiteboardMainWindowUI
+	attr_reader :main_widget
+
   slots 'timeout()', 'networkEvent(QString*)', 'networkMessage(QString*)',
-		'network_connect()', 'start_server()', 'file_save()', 'file_open()',
+		'connect_click()', 'start_server()', 'file_save()', 'file_open()',
 		'insert_object(bool)', 'no_item_creating()'
 	
+  def initialize(user_id, port, parent = nil, name = nil)
+    super(parent, name)
+
+		@user_id = user_id
+		@port = port
+
+    statusBar().message("Welcome to whiteboard!", 2000)
+
+    @main_widget = WhiteboardMainWidget.new(@user_id, self)
+    @main_widget.show()
+    set_central_widget(@main_widget)
+
+    connect(@fileSaveAction, SIGNAL('activated()'), SLOT('file_save()'))
+    connect(@fileOpenAction, SIGNAL('activated()'), SLOT('file_open()'))
+
+		# When you add a new kind of object, add the action
+		# into this hash.  If the value you specify is a class,
+		# a raw object of that class will be created,
+		# or you can pass a Proc object that will execute whatever
+		# you want.  The Proc object should call @main_widget.prepare_object_creation(...)
+		
+		@item_actions = {
+			"@insert_rectangle_action" => WhiteboardRectangle,
+			"@insert_math_action" => Proc.new do 
+				m = WhiteboardMathObject.new(@main_widget)
+				connect(m, SIGNAL('started_editing(QString*)'), @main_widget, SLOT('show_text_panel(QString*)'))
+				connect(m, SIGNAL('finished_editing()'), @main_widget, SLOT('hide_text_panel()'))
+				@main_widget.prepare_object_creation(m)
+			end,
+			"@insert_line_action" => WhiteboardLine,
+			"@insert_arrow_action" => WhiteboardArrow,
+			"@insert_image_action" => WhiteboardImageObject,
+			"@insert_ellipse_action" => WhiteboardEllipse,
+			"@insert_freeform_action" => WhiteboardFreeForm
+		}
+
+		@item_actions.each do |s, v|
+			connect(instance_variable_get(s), SIGNAL('toggled(bool)'), SLOT("insert_object(bool)"))
+		end
+		
+		connect(@connectAction, SIGNAL('activated()'), SLOT('connect_click()'))
+		connect(@startServerAction, SIGNAL('activated()'), SLOT('start_server()'))
+
+		connect(@main_widget, SIGNAL('object_created()'), SLOT('no_item_creating()'))
+		
+		# timer is an unfortunate hack to get the network thread called.
+		# apparently you need to execute some ruby code periodically otherwise
+		# the ruby threads will never execute
+		timer = Qt::Timer.new(self)
+		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
+		timer.start(0)
+
+		@network_interface = NetworkInterface.new()
+		set_caption("Whiteboard: #{@port}")
+		connect(@network_interface, SIGNAL('message(QString*)'), SLOT('networkMessage(QString*)'))
+
+		@main_widget.network_interface = @network_interface
+
+		setMinimumSize(800, 400)
+  end
+
 	def timeout() end
 
 	def networkMessage(s)
 		msg = NetworkMessage.from_line(s)
 		if msg.is_a?(CreateObjectMessage)
-			@widget.create_object(msg.object.from_yaml_object(@widget), false)
+			@main_widget.create_object(msg.object.from_yaml_object(@main_widget), false)
 		elsif msg.is_a?(MoveObjectMessage)
-			@widget.move_object(msg.object_id, msg.x, msg.y)
+			@main_widget.move_object(msg.object_id, msg.x, msg.y)
 		elsif msg.is_a?(ResizeObjectMessage)
-			@widget.resize_object_by_id(msg.object_id, msg.mx, msg.my, msg.dx, msg.dy)
+			@main_widget.resize_object_by_id(msg.object_id, msg.mx, msg.my, msg.dx, msg.dy)
 		elsif msg.is_a?(DeleteObjectMessage)
-			@widget.delete_object_by_id(msg.object_id)
+			@main_widget.delete_object_by_id(msg.object_id)
 		elsif msg.is_a?(ChangeObjectMessage)
-			@widget.change_object(msg.object_id, msg.object)
+			@main_widget.change_object(msg.object)
 		end
 	end
 
@@ -57,12 +120,11 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		statusBar().message("Connection! #{addr}:#{port}", 3000)
 	end
 
-	def network_connect()
+	def connect_click()
 		text = Qt::InputDialog.get_text('Whiteboard', 'Please enter the address (host:port) to connect to:')
 		if text != nil
 			address, port = text.split(':')
-			@network_interface.start_client(address, port.to_i)
-			statusBar().message("Connected", 2000)
+			start_client(address, port.to_i)
 		else
 			statusBar().message("Connection cancelled", 2000)
 		end
@@ -71,6 +133,15 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 	def start_server()
 		@network_interface.start_server(@port)
 		statusBar().message("Server started on port #{@port}", 3000)
+	end
+
+	def start_client(address, port)
+		@network_interface.start_client(address, port.to_i)
+		statusBar().message("Connected", 2000)
+	end
+	
+	def stop()
+		@network_interface.stop()
 	end
 
 	def file_save()
@@ -83,7 +154,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		)
 		if name != nil then
 			File.open(name, "w+") do |f|
-				@widget.state.objects.each { |o| f.puts(o.to_s.tr("\n", '#')) }
+				@main_widget.state.objects.each { |o| f.puts(o.to_s.tr("\n", '#')) }
 			end
 		end
 	end
@@ -97,75 +168,15 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 			"Please choose a filename to save to"
 		)
 		if name != nil then
-			#@widget.state.objects = []
+			#@main_widget.state.objects = []
 			File.open(name, "r") do |f|
 				f.each_line do |line|
-					r = YAML.load(line.tr('#', "\n")).from_yaml_object(@widget) 
-					@widget.create_object(r, false)
+					r = YAML.load(line.tr('#', "\n")).from_yaml_object(@main_widget) 
+					@main_widget.create_object(r, false)
 				end
 			end
 		end
 	end
-
-  def initialize(port, parent = nil, name = nil)
-    super(parent, name)
-
-		@port = port
-
-    statusBar().message("Welcome to whiteboard!", 2000)
-
-    @widget = WhiteboardMainWidget.new(self)
-    @widget.show()
-    set_central_widget(@widget)
-
-    connect(@fileSaveAction, SIGNAL('activated()'), SLOT('file_save()'))
-    connect(@fileOpenAction, SIGNAL('activated()'), SLOT('file_open()'))
-
-		# When you add a new kind of object, add the action
-		# into this hash.  If the value you specify is a class,
-		# a raw object of that class will be created,
-		# or you can pass a Proc object that will execute whatever
-		# you want.  The Proc object should call @widget.prepare_object_creation(...)
-		
-		@item_actions = {
-			"@insert_rectangle_action" => WhiteboardRectangle,
-			"@insert_math_action" => Proc.new do 
-				m = WhiteboardMathObject.new(@widget)
-				connect(m, SIGNAL('started_editing(QString*)'), @widget, SLOT('show_text_panel(QString*)'))
-				connect(m, SIGNAL('finished_editing()'), @widget, SLOT('hide_text_panel()'))
-				@widget.prepare_object_creation(m)
-			end,
-			"@insert_line_action" => WhiteboardLine,
-			"@insert_arrow_action" => WhiteboardArrow,
-			"@insert_image_action" => WhiteboardImageObject,
-			"@insert_ellipse_action" => WhiteboardEllipse,
-			"@insert_freeform_action" => WhiteboardFreeForm
-		}
-
-		@item_actions.each do |s, v|
-			connect(instance_variable_get(s), SIGNAL('toggled(bool)'), SLOT("insert_object(bool)"))
-		end
-		
-		connect(@connectAction, SIGNAL('activated()'), SLOT('network_connect()'))
-		connect(@startServerAction, SIGNAL('activated()'), SLOT('start_server()'))
-
-		connect(@widget, SIGNAL('object_created()'), SLOT('no_item_creating()'))
-		
-		# timer is an unfortunate hack to get the network thread called.
-		# apparently you need to execute some ruby code periodically otherwise
-		# the ruby threads will never execute
-		timer = Qt::Timer.new(self)
-		connect(timer, SIGNAL('timeout()'), SLOT('timeout()'))
-		timer.start(0)
-
-		@network_interface = NetworkInterface.new()
-		set_caption("Whiteboard: #{@port}")
-		connect(@network_interface, SIGNAL('message(QString*)'), SLOT('networkMessage(QString*)'))
-
-		@widget.network_interface = @network_interface
-
-		setMinimumSize(800, 400)
-  end
 
 	def no_item_creating() 
 		@item_actions.each { |s, v| instance_variable_get(s).set_on(false) }
@@ -176,7 +187,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 		@item_actions.each do |s, v| 
 			if instance_variable_get(s).is_on()
 				if v.is_a?(Class)
-					@widget.prepare_object_creation(v.new(@widget)) 
+					@main_widget.prepare_object_creation(v.new(@main_widget)) 
 				elsif v.is_a?(Proc)
 					v.call()
 				end
@@ -275,7 +286,7 @@ class WhiteboardState
 end
 
 class WhiteboardMainWidget < Qt::Widget
-  attr_reader :canvas_view, :canvas, :pixmaps, :state, :network_interface
+  attr_reader :canvas_view, :canvas, :pixmaps, :state, :network_interface, :user_id
 	attr_writer :network_interface
 
 	signals 'object_created()'
@@ -288,8 +299,10 @@ class WhiteboardMainWidget < Qt::Widget
   ObjectMinimumSize = 5
 	NumControlPoints = 8
 
-  def initialize(parent)
+  def initialize(user_id, parent)
     super(parent)
+
+		@user_id = user_id
         
     layout = Qt::GridLayout.new(self, 2, 2)
 
@@ -370,14 +383,14 @@ class WhiteboardMainWidget < Qt::Widget
 	end
 
 	def delete_object_by_id(whiteboard_object_id)
+		to_remove = []
 		@state.objects.each { |i| 
 			if i.whiteboard_object_id == whiteboard_object_id
 				i.hide() 
-				# tag with whiteboard_object_id = nil so we remove it next
-				i.whiteboard_object_id = nil 
+				to_remove << i
 			end
 		}
-		@state.objects.delete_if { |i| i.whiteboard_object_id == nil }
+		to_remove.each { |i| @state.objects.delete(i) }
 		@canvas.update()
 	end
 
@@ -387,10 +400,9 @@ class WhiteboardMainWidget < Qt::Widget
 		@canvas.update()
 	end
 
-	def change_object(whiteboard_object_id, object)
-		delete_object_by_id(whiteboard_object_id)
+	def change_object(object)
+		delete_object_by_id(object.whiteboard_object_id)
 		ob = object.from_yaml_object(self)
-		ob.whiteboard_object_id = whiteboard_object_id
 		create_object(ob, false)
 	end
 
@@ -553,7 +565,7 @@ class WhiteboardMainWidget < Qt::Widget
 
 	def properties_changed(s)
 		ob = @state.objects.find { |o| o.whiteboard_object_id == s }
-		@network_interface.broadcast_message(ChangeObjectMessage.new(s, ob.to_yaml_object()))
+		@network_interface.broadcast_message(ChangeObjectMessage.new(ob.to_yaml_object()))
 	end
 
   def create_control_points()

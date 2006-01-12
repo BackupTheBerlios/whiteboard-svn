@@ -21,13 +21,12 @@ class WhiteboardLine < WhiteboardObject
 
 	def mousePress(e)
 		@point1 = Qt::Point.new(e.x, e.y)
-		@line.set_points(@point1.x, @point1.y, @point1.x + 1, @point1.y + 1)
+		set_points(@point1.x, @point1.y, @point1.x + 1, @point1.y + 1)
 		@line.show()
 	end
 
 	def mouseMove(e)
 		@line.set_points(@point1.x, @point1.y, e.x, e.y)
-		update_arrow()
 		@canvas.update()
 	end
   
@@ -40,21 +39,21 @@ class WhiteboardLine < WhiteboardObject
 	end
 
 	def to_yaml_object()
+		super()
 		@x1, @x2, @y1, @y2 = @line.start_point.x, @line.start_point.y, @line.end_point.x, @line.end_point.y
 		self
 	end
 
 	def from_yaml_object(main_widget)
-		set_main_widget(main_widget)
+		super(main_widget)
 		setup()
-		@line.set_canvas(@canvas)
-		@line.set_points(@x1, @x2, @y1, @y2)
+		set_points(@x1, @x2, @y1, @y2)
 		@line.show()
-		update_arrow()
 		self
 	end
 	
-	def update_arrow()
+	def set_points(x1, y1, x2, y2)
+		@line.set_points(x1, y1, x2, y2)
 		if @is_arrow
 			angle = Math.atan2(@line.end_point.y - @line.start_point.y, 
 				@line.end_point.x - @line.start_point.x)
@@ -87,13 +86,9 @@ class WhiteboardLine < WhiteboardObject
 		@canvas.update()
 	end
 	
-	def x() [@line.start_point.x, @line.end_point.x].min end
-	def y() [@line.start_point.y, @line.end_point.y].min end
-	
 	def move_by(dx, dy) 
-		@line.set_points(@line.start_point.x + dx, @line.start_point.y + dy,
+		set_points(@line.start_point.x + dx, @line.start_point.y + dy,
 			@line.end_point.x + dx, @line.end_point.y + dy)
-		update_arrow()
 	end
 	
 	def move(x, y) 
@@ -116,13 +111,13 @@ class WhiteboardLine < WhiteboardObject
 		@line.set_points(x1, y1, x2, y2)
 	end
 
+	def x() [@line.start_point.x, @line.end_point.x].min end
+	def y() [@line.start_point.y, @line.end_point.y].min end
 	def width() (@line.end_point.x - @line.start_point.x).abs end
 	def height() (@line.end_point.y - @line.start_point.y).abs end
 	def bounding_rect() Qt::Rect.new(x(), y(), width(), height()) end
 	def start_point() @line.start_point end
 	def end_point() @line.end_point end
-
-	def set_points(x1, y1, x2, y2) @line.set_points(x1, y1, x2, y2) end
 end
 
 class WhiteboardArrow <  WhiteboardLine

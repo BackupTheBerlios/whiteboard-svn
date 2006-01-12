@@ -19,12 +19,12 @@ end
 
 class TestWhiteboard < Test::Unit::TestCase
 	def test_default()
-		w = WhiteboardMainWidget.new(nil)
+		w = WhiteboardMainWidget.new('blah', nil)
 		assert_equal("Default", w.state.to_s)
 	end	
 
 	def test_selection()
-		w = WhiteboardMainWidget.new(nil)
+		w = WhiteboardMainWidget.new('blah', nil)
 		w.prepare_object_creation(WhiteboardRectangle.new(w))
 		w.left_mouse_press(10, 10)
 		w.left_mouse_move(30, 30)

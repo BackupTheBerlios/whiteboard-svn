@@ -2,7 +2,10 @@
 
 require 'network'
 require 'test/unit'
+require 'main_helper'
 require 'Qt'
+
+$a = Qt::Application.new([]) if not defined?($a)
 
 class NetworkTestObject < Qt::Object
 	attr_reader :server, :client, :server_messages, :client_messages
@@ -96,5 +99,24 @@ class TestNetwork < Test::Unit::TestCase
 		m = NetworkMessage.from_line(n.client_messages[4])
 		assert_equal(true, m.is_a?(DeleteObjectMessage))
 		assert_equal("delete object id", m.object_id)
+
+		n.client.stop()
+		n.server.stop()
+	end
+
+	def test_app_networking()
+		w, w2 = start_double()
+
+		w.main_widget.prepare_object_creation(WhiteboardRectangle.new(w.main_widget))
+		w.main_widget.left_mouse_press(10, 10)
+		w.main_widget.left_mouse_move(30, 30)
+		w.main_widget.left_mouse_release(30, 30)
+
+		sleep(1)
+
+		assert_equal(1, w2.main_widget.state.objects.length)
+
+		w.stop()
+		w2.stop()
 	end
 end

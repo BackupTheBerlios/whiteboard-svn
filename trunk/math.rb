@@ -7,7 +7,6 @@ end
 
 class WhiteboardMathObject < WhiteboardObject
 	attr_reader :text
-	attr_writer :point #hack, should be private
 	signals 'started_editing(QString*)', 'finished_editing()'
 
   def initialize(main_widget = nil)
@@ -19,8 +18,8 @@ class WhiteboardMathObject < WhiteboardObject
 		@point = Qt::Point.new(e.x, e.y)
 		emit started_editing('')
   end	
-
-	#hack (should be private?)
+	
+	private
 	def set_text(text)
 		@text = text
 
@@ -34,10 +33,14 @@ class WhiteboardMathObject < WhiteboardObject
 
 		@canvas_items = [@sprite]
 
-		# we put the pixmap onto an array that will be kept, otherwise
-		# we get a segfault on garbage collection
+		# we put the pixmap and sprite onto an array that will be kept, otherwise
+		# we get a segfault on garbage collection.
+		# todo remove them when this object is deleted
 		$pixmaps ||= []
 		$pixmaps << pix
+
+		$sprites ||= []
+		$sprites << @sprite
 	end
 
 	public
@@ -60,16 +63,16 @@ class WhiteboardMathObject < WhiteboardObject
 	end
 
 	def to_yaml_object()
+		super()
 		@x, @y = @sprite.x, @sprite.y
 		self
 	end
 
 	def from_yaml_object(main_widget)
-		w = WhiteboardMathObject.new(main_widget)
-		w.whiteboard_object_id = @whiteboard_object_id
-		w.point = Qt::Point.new(@x, @y)
-		w.set_text(@text)
-		w
+		super(main_widget)
+		@point = Qt::Point.new(@x, @y)
+		set_text(@text)
+		self
 	end
 
   def select_object()

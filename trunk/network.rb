@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby -w
 
 require 'socket'
+require 'Qt'
 
 class NetworkInterface < Qt::Object
 	signals 'message(QString*)'
@@ -40,6 +41,8 @@ class NetworkInterface < Qt::Object
 	def broadcast_string(str)
 		@object.write(str) if @object != nil
 	end
+
+	def stop() @object.stop() end
 end 
 
 class NetworkServer < Qt::Object
@@ -48,8 +51,8 @@ class NetworkServer < Qt::Object
 	def initialize(port)
 		super(nil)
 		@port = port
-		@server = TCPServer.new('', port)
-		@server.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
+		@socket = TCPServer.new('', port)
+		@socket.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
 		@sessions = []
 		@is_running = false
 	end
@@ -58,11 +61,11 @@ class NetworkServer < Qt::Object
 		return if @is_running 
 		@is_running = true
 		@thr = Thread.start do
-			while true
-				s = select([@server] + @sessions, nil, nil)
+			while @is_running
+				s = select([@socket] + @sessions, nil, nil)
 				if s != nil
 					s[0].each do |sock|
-						if sock == @server
+						if sock == @socket
 							new_sock = sock.accept()
 							@sessions << new_sock 
 						elsif sock.eof()
@@ -78,7 +81,11 @@ class NetworkServer < Qt::Object
 		end
 	end
 
-	def join() @thr.join() end
+	def stop() 
+		@is_running = false
+		@thr.kill() 
+		@socket.shutdown()
+	end
 
 	def write(s)
 		@sessions.each { |ses| ses.print s }
@@ -90,23 +97,29 @@ class NetworkClient < Qt::Object
 
 	def initialize(host, port)
 		super(nil)
-		@sock = TCPSocket.new(host, port)
+		@socket = TCPSocket.new(host, port)
 		@is_running = false
 	end
 
 	def run()
 		return if @is_running 
 		@is_running = true
-		Thread.new do
-			while true
-				str = @sock.gets()
+		@thr = Thread.new do
+			while @is_running
+				str = @socket.gets()
 				emit message(str) if str != nil
 			end
 		end
 	end
+	
+	def stop() 
+		@is_running = false
+		@thr.kill() 
+		@socket.shutdown()
+	end
 
 	def write(s)
-		@sock.write(s)
+		@socket.write(s)
 	end
 end
 
@@ -161,11 +174,11 @@ class DeleteObjectMessage < NetworkMessage
 end
 
 class ChangeObjectMessage < NetworkMessage
-	attr_reader :object_id, :object
+	attr_reader :object
 
-	def initialize(object_id, object)
-		@object_id, @object = object_id, object
+	def initialize(object)
+		@object = object
 	end
 
-	def to_yaml_properties() %w{ @object_id @object } end
+	def to_yaml_properties() %w{ @object } end
 end

@@ -17,15 +17,12 @@ end
 
 class WhiteboardObject < Qt::Object
   attr_reader :canvas_items, :controller, :whiteboard_object_id, :line_colour, :line_width, :fill_colour
-	attr_writer :line_colour, :line_width, :fill_colour, :whiteboard_object_id
-		# hack whiteboard-object-id shouldn't be public writable
-	@@num_objects = 0
+	attr_writer :line_colour, :line_width, :fill_colour
 
   def initialize(main_widget)
 		super(nil)
 		set_main_widget(main_widget)
-		@whiteboard_object_id = "#{$user_id}:#{@@num_objects}"
-		@@num_objects += 1
+		@whiteboard_object_id = "#{@user_id}:#{object_id}"
 		@line_colour = Qt::black
 		@line_width = 1
 		@fill_colour = Qt::white
@@ -37,6 +34,7 @@ class WhiteboardObject < Qt::Object
 			@canvas = main_widget.canvas
 			@canvas_view = main_widget.canvas_view
 			@network_interface = main_widget.network_interface
+			@user_id = main_widget.user_id
 		end
 	end
 
@@ -58,9 +56,10 @@ class WhiteboardObject < Qt::Object
 		self
 	end
 
-	def from_yaml_object()
+	def from_yaml_object(main_widget)
 		@fill_colour = Qt::Color.new(@fill_colour_r, @fill_colour_g, @fill_colour_b)
 		@line_colour = Qt::Color.new(@line_colour_r, @line_colour_g, @line_colour_b)
+		set_main_widget(main_widget)
 		self
 	end
 

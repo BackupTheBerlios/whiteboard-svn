@@ -92,7 +92,7 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 
 		@network_interface = NetworkInterface.new()
 		set_caption("Whiteboard: #{@port}")
-		connect(@network_interface, SIGNAL('message(QString*)'), SLOT('networkMessage(QString*)'))
+		#connect(@network_interface, SIGNAL('message(QString*)'), SLOT('networkMessage(QString*)'))
 
 		@main_widget.network_interface = @network_interface
 
@@ -131,12 +131,12 @@ class WhiteboardMainWindow < WhiteboardMainWindowUI
 	end	
 
 	def start_server()
-		@network_interface.start_server(@port)
+		@network_interface.start_server(@port) { |s| networkMessage(s) }
 		statusBar().message("Server started on port #{@port}", 3000)
 	end
 
 	def start_client(address, port)
-		@network_interface.start_client(address, port.to_i)
+		@network_interface.start_client(address, port.to_i) { |s| networkMessage(s) }
 		statusBar().message("Connected", 2000)
 	end
 	
@@ -378,8 +378,11 @@ class WhiteboardMainWidget < Qt::Widget
   end
 
 	def move_object(whiteboard_object_id, x, y)
-		@state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }.move(x, y)
-		@canvas.update()
+		ob = @state.objects.find { |i| i.whiteboard_object_id == whiteboard_object_id }
+		if ob
+			ob.move(x, y)
+			@canvas.update()
+		end
 	end
 
 	def delete_object_by_id(whiteboard_object_id)

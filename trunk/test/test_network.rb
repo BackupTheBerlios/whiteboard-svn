@@ -9,7 +9,6 @@ $a = Qt::Application.new([]) if not defined?($a)
 
 class NetworkTestObject < Qt::Object
 	attr_reader :server, :client, :server_messages, :client_messages
-	slots 'server_message(QString*)', 'client_message(QString*)'
 
 	def initialize()
 		super(nil)
@@ -18,12 +17,10 @@ class NetworkTestObject < Qt::Object
 		@client_messages = []
 	
 		@server = NetworkInterface.new()
-		connect(@server, SIGNAL('message(QString*)'), SLOT('server_message(QString*)'))
-		@server.start_server(2627)
+		@server.start_server(2627) { |s| @server_messages << s }
 		
 		@client = NetworkInterface.new()
-		connect(@client, SIGNAL('message(QString*)'), SLOT('client_message(QString*)'))
-		@client.start_client('localhost', 2627)
+		@client.start_client('localhost', 2627) { |s| @client_messages << s }
 	end
 
 	def server_message(s)

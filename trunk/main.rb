@@ -13,6 +13,7 @@ a = Qt::Application.new(ARGV)
 
 if ARGV[0] == "double"
 	#Qt::Internal::setDebug Qt::QtDebugChannel::QTDB_GC
+	puts "hello???"
 	w, w2 = start_double()
 else
 	user_id = ARGV[0] || 'magee'

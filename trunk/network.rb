@@ -4,27 +4,18 @@ require 'socket'
 require 'Qt'
 
 class NetworkInterface < Qt::Object
-	signals 'message(QString*)'
-	slots 'message(QString*)'
-
 	def initialize()
 		super(nil)
 		@object = nil
 	end
 	
-	def message(m)
-		emit message(m)
-	end
-
-	def start_server(port)
-		@object = NetworkServer.new( port)
-		connect(@object, SIGNAL('message(QString*)'), SLOT('message(QString*)'))
+	def start_server(port, &block)
+		@object = NetworkServer.new(port, block)
 		@object.run()
 	end
 
-	def start_client(host, port)
-		@object = NetworkClient.new(host, port)
-		connect(@object, SIGNAL('message(QString*)'), SLOT('message(QString*)'))
+	def start_client(host, port, &block)
+		@object = NetworkClient.new(host, port, block)
 		@object.run()
 	end
 	
@@ -45,16 +36,14 @@ class NetworkInterface < Qt::Object
 	def stop() @object.stop() end
 end 
 
-class NetworkServer < Qt::Object
-	signals 'message(QString*)'
-
-	def initialize(port)
-		super(nil)
+class NetworkServer 
+	def initialize(port, block)
 		@port = port
 		@socket = TCPServer.new('', port)
 		@socket.setsockopt( Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1 )
 		@sessions = []
 		@is_running = false
+		@block = block
 	end
 
 	def run()
@@ -72,7 +61,7 @@ class NetworkServer < Qt::Object
 							@sessions.delete(sock)
 						else
 							line = sock.gets()
-							emit message(line)
+							@block.call(line)
 							@sessions.each { |s| s.print line if s != sock }
 						end
 					end
@@ -92,13 +81,12 @@ class NetworkServer < Qt::Object
 	end
 end
 
-class NetworkClient < Qt::Object
-	signals 'message(QString*)'
-
-	def initialize(host, port)
-		super(nil)
+class NetworkClient 
+	def initialize(host, port, block)
+		#super(nil)
 		@socket = TCPSocket.new(host, port)
 		@is_running = false
+		@block = block
 	end
 
 	def run()
@@ -107,7 +95,7 @@ class NetworkClient < Qt::Object
 		@thr = Thread.new do
 			while @is_running
 				str = @socket.gets()
-				emit message(str) if str != nil
+				@block.call(str) if str != nil
 			end
 		end
 	end
